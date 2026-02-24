@@ -5,7 +5,7 @@ import { resolveNotionPage } from '@/lib/resolve-notion-page'
 import type { PageProps } from '@/lib/types'
 
 // This is needed to generate pages at runtime dynamically using ISR.
-export const runtime = "nodejs"
+export const runtime = 'nodejs'
 
 async function getPageProps(pageId: string): Promise<PageProps> {
   try {
@@ -18,12 +18,15 @@ async function getPageProps(pageId: string): Promise<PageProps> {
 
 export async function generateStaticParams() {
   const siteMap = await getSiteMap()
-  return Object.keys(siteMap.canonicalPageMap)
-    .map(pageId => { params: { pageId: pageId } })
+  return Object.keys(siteMap.canonicalPageMap).map((pageId) => ({
+    pageId
+  }))
 }
 
-
-export default async function NotionDomainDynamicPage({ params }) {
-  const props = await getPageProps(params.pageId)
+export default async function NotionDomainDynamicPage({
+  params
+}: { params: Promise<{ pageId: string }> }) {
+  const { pageId } = await params
+  const props = await getPageProps(pageId)
   return <NotionPage {...props} />
 }

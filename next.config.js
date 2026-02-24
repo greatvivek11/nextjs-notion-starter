@@ -4,6 +4,7 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 })
 
 module.exports = withBundleAnalyzer({
+  turbopack: {},
   env: {
     ROOT_NOTION_PAGE_ID: process.env.ROOT_NOTION_PAGE_ID,
     ROOT_NOTION_SPACE_ID: process.env.ROOT_NOTION_SPACE_ID,
@@ -32,38 +33,38 @@ module.exports = withBundleAnalyzer({
         protocol: 'https',
         hostname: 'images.unsplash.com',
         port: '',
-        pathname: '/**',
+        pathname: '/**'
       },
       {
         protocol: 'https',
         hostname: 'pbs.twimg.com',
         port: '',
-        pathname: '/**',
+        pathname: '/**'
       },
       {
         protocol: 'https',
         hostname: 'abs.twimg.com',
         port: '',
-        pathname: '/**',
+        pathname: '/**'
       },
       {
         protocol: 'https',
         hostname: 's3.us-west-2.amazonaws.com',
         port: '',
-        pathname: '/**',
+        pathname: '/**'
       },
       {
         protocol: 'https',
         hostname: 'www.notion.so',
         port: '',
-        pathname: '/**',
+        pathname: '/**'
       },
       {
         protocol: 'https',
         hostname: 'notion.so',
         port: '',
-        pathname: '/**',
-      },
+        pathname: '/**'
+      }
     ],
     formats: ['image/avif', 'image/webp'],
     dangerouslyAllowSVG: true,

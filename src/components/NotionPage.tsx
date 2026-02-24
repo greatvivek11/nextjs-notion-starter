@@ -126,14 +126,7 @@ const propertyDateValue = (
 function propertyTextValue(
   { schema, pageHeader },
   defaultFn: () => React.ReactNode
-):
-  | string
-  | number
-  | boolean
-  | JSX.Element
-  | React.ReactFragment
-  | null
-  | undefined {
+): React.ReactNode {
   if (pageHeader && schema?.name?.toLowerCase() === 'author') {
     return <b>{defaultFn()}</b>
   }
@@ -144,14 +137,7 @@ function propertyTextValue(
 function propertySelectValue(
   { schema, value, key, pageHeader },
   defaultFn: () => React.ReactNode
-):
-  | string
-  | number
-  | boolean
-  | JSX.Element
-  | React.ReactFragment
-  | null
-  | undefined {
+): React.ReactNode {
   value = normalizeTitle(value)
 
   if (pageHeader && schema.type === 'multi_select' && value) {

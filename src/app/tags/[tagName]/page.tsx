@@ -109,14 +109,17 @@ async function getPageProps(tagName: string): Promise<PageProps> {
 
 export async function generateStaticParams() {
   const siteMap = await getSiteMap()
-  return Object.keys(siteMap.canonicalPageMap).map((pageId) => {
-    params: {
-      tagName: pageId
-    }
-  })
+  return Object.keys(siteMap.canonicalPageMap).map((pageId) => ({
+    tagName: pageId
+  }))
 }
 
-export default async function NotionTagsPage({ params }) {
-  const pageProps = await getPageProps(params.tagName)
+export default async function NotionTagsPage({
+  params
+}: {
+  params: Promise<{ tagName: string }>
+}) {
+  const { tagName } = await params
+  const pageProps = await getPageProps(tagName)
   return <NotionPage {...pageProps} />
 }
