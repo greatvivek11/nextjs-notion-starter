@@ -1,20 +1,16 @@
 import { getAllPagesInSpace, getPageProperty } from 'notion-utils'
-import { rootNotionPageId, rootNotionSpaceId, site } from './config'
 import pMemoize from 'p-memoize'
+import { rootNotionPageId, rootNotionSpaceId, site } from './config'
 
-
-import * as types from './types'
 import { includeNotionIdInUrls } from './config'
 import { getCanonicalPageId } from './get-canonical-page-id'
 import { notion } from './notion-api'
+import * as types from './types'
 
 const uuid = !!includeNotionIdInUrls
 
 export async function getSiteMap(): Promise<types.SiteMap> {
-  const partialSiteMap = await getAllPages(
-    rootNotionPageId,
-    rootNotionSpaceId
-  )
+  const partialSiteMap = await getAllPages(rootNotionPageId, rootNotionSpaceId)
 
   return {
     site: site,
@@ -32,7 +28,7 @@ async function getAllPagesImpl(
 ): Promise<Partial<types.SiteMap>> {
   const getPage = async (pageId: string, ...args) => {
     // console.log('\nnotion getPage', uuidToId(pageId))
-    return notion.getPage(pageId, ...args)
+    return notion.getPage(pageId, { signFileUrls: false, ...args[0] })
   }
 
   const pageMap = await getAllPagesInSpace(
@@ -48,8 +44,14 @@ async function getAllPagesImpl(
         throw new Error(`Error loading page "${pageId}"`)
       }
 
-      const block = recordMap.block[pageId]?.value
-      if (!(getPageProperty<boolean | null>('Public', block, recordMap) ?? true)) {
+      const blockEntry = recordMap.block[pageId]
+      const block =
+        (blockEntry as any)?.value?.value ||
+        (blockEntry as any)?.value ||
+        blockEntry
+      if (
+        !(getPageProperty<boolean | null>('Public', block, recordMap) ?? true)
+      ) {
         return map
       }
 

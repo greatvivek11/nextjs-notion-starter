@@ -14,7 +14,10 @@ import { mapImageUrl } from '@/lib/map-image-url'
 import { notion } from '@/lib/notion-api'
 import type { NotionPageInfo } from '@/lib/types'
 
-export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+export default async function handler(
+  req: NextApiRequest,
+  res: NextApiResponse
+) {
   if (req.method !== 'POST') {
     return res.status(405).send({ error: 'method not allowed' })
   }
@@ -24,10 +27,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     throw new Error('Invalid notion page id')
   }
 
-  const recordMap = await notion.getPage(pageId)
+  const recordMap = await notion.getPage(pageId, { signFileUrls: false })
 
   const keys = Object.keys(recordMap?.block || {})
-  const block = recordMap?.block?.[keys[0]]?.value
+  const blockEntry = recordMap?.block?.[keys[0]]
+  const block =
+    (blockEntry as any)?.value?.value ||
+    (blockEntry as any)?.value ||
+    blockEntry
 
   if (!block) {
     throw new Error('Invalid recordMap for page')
@@ -58,7 +65,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const imageBlockUrl = mapImageUrl(
     getPageProperty<string>('Social Image', block, recordMap) ||
-    (block as PageBlock).format?.page_cover,
+      (block as PageBlock).format?.page_cover,
     block
   )
   const imageFallbackUrl = mapImageUrl(libConfig.defaultPageCover, block)
@@ -96,8 +103,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const date =
     isBlogPost && datePublished
       ? `${datePublished.toLocaleString('en-US', {
-        month: 'long'
-      })} ${datePublished.getFullYear()}`
+          month: 'long'
+        })} ${datePublished.getFullYear()}`
       : undefined
   const detail = date || author || libConfig.domain
 

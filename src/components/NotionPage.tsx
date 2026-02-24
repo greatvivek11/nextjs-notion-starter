@@ -35,35 +35,38 @@ import styles from './styles.module.css'
 // dynamic imports for optional components
 // -----------------------------------------------------------------------------
 
-const Code = dynamic(() =>
-  import('react-notion-x/build/third-party/code').then(async (m) => {
-    // add / remove any prism syntaxes here
-    await Promise.allSettled([
-      import('prismjs/components/prism-bash.js'),
-      import('prismjs/components/prism-csharp.js'),
-      import('prismjs/components/prism-js-templates.js'),
-      import('prismjs/components/prism-python.js'),
-      import('prismjs/components/prism-rust.js'),
-      import('prismjs/components/prism-sql.js'),
-      import('prismjs/components/prism-yaml.js')
-    ])
-    return m.Code
-  }),
+const Code = dynamic(
+  () =>
+    import('react-notion-x/build/third-party/code').then(async (m) => {
+      // add / remove any prism syntaxes here
+      await Promise.allSettled([
+        import('prismjs/components/prism-bash.js'),
+        import('prismjs/components/prism-csharp.js'),
+        import('prismjs/components/prism-js-templates.js'),
+        import('prismjs/components/prism-python.js'),
+        import('prismjs/components/prism-rust.js'),
+        import('prismjs/components/prism-sql.js'),
+        import('prismjs/components/prism-yaml.js')
+      ])
+      return m.Code
+    }),
   {
     ssr: true
   }
 )
 
-const Collection = dynamic(() =>
-  import('react-notion-x/build/third-party/collection').then(
-    (m) => m.Collection
-  ),
+const Collection = dynamic(
+  () =>
+    import('react-notion-x/build/third-party/collection').then(
+      (m) => m.Collection
+    ),
   {
     ssr: true
   }
 )
-const Equation = dynamic(() =>
-  import('react-notion-x/build/third-party/equation').then((m) => m.Equation),
+const Equation = dynamic(
+  () =>
+    import('react-notion-x/build/third-party/equation').then((m) => m.Equation),
   {
     ssr: true
   }
@@ -90,8 +93,10 @@ const Tweet = ({ id }: { id: string }) => {
   return <TweetEmbed tweetId={id} />
 }
 
-function propertyLastEditedTimeValue({ block, pageHeader },
-  defaultFn: () => React.ReactNode): React.ReactNode {
+function propertyLastEditedTimeValue(
+  { block, pageHeader },
+  defaultFn: () => React.ReactNode
+): React.ReactNode {
   if (pageHeader && block?.last_edited_time) {
     return `Last updated ${formatDate(block?.last_edited_time, {
       month: 'long'
@@ -118,8 +123,17 @@ const propertyDateValue = (
   return defaultFn()
 }
 
-function propertyTextValue({ schema, pageHeader },
-  defaultFn: () => React.ReactNode): string | number | boolean | JSX.Element | React.ReactFragment | null | undefined {
+function propertyTextValue(
+  { schema, pageHeader },
+  defaultFn: () => React.ReactNode
+):
+  | string
+  | number
+  | boolean
+  | JSX.Element
+  | React.ReactFragment
+  | null
+  | undefined {
   if (pageHeader && schema?.name?.toLowerCase() === 'author') {
     return <b>{defaultFn()}</b>
   }
@@ -127,8 +141,17 @@ function propertyTextValue({ schema, pageHeader },
   return defaultFn()
 }
 
-function propertySelectValue({ schema, value, key, pageHeader },
-  defaultFn: () => React.ReactNode): string | number | boolean | JSX.Element | React.ReactFragment | null | undefined {
+function propertySelectValue(
+  { schema, value, key, pageHeader },
+  defaultFn: () => React.ReactNode
+):
+  | string
+  | number
+  | boolean
+  | JSX.Element
+  | React.ReactFragment
+  | null
+  | undefined {
   value = normalizeTitle(value)
 
   if (pageHeader && schema.type === 'multi_select' && value) {
@@ -176,6 +199,31 @@ export const NotionPage: React.FC<types.PageProps> = ({
 
   const { isDarkMode } = useDarkMode()
 
+  // Hide images that fail to load (e.g. expired signed URLs)
+  React.useEffect(() => {
+    const handleImageError = (e: Event) => {
+      const img = e.target as HTMLImageElement
+      if (img.tagName !== 'IMG') return
+
+      // Only handle images inside Notion containers
+      const notionEl = img.closest('.notion')
+      if (!notionEl) return
+
+      img.style.display = 'none'
+
+      // Collapse the cover container if it's a cover/card image
+      const coverWrapper = img.closest(
+        '.notion-page-cover-wrapper, .notion-collection-card-cover'
+      )
+      if (coverWrapper instanceof HTMLElement) {
+        coverWrapper.style.display = 'none'
+      }
+    }
+
+    document.addEventListener('error', handleImageError, true)
+    return () => document.removeEventListener('error', handleImageError, true)
+  }, [])
+
   const siteMapPageUrl = React.useMemo(() => {
     const params: any = {}
     if (lite) params.lite = lite
@@ -185,7 +233,11 @@ export const NotionPage: React.FC<types.PageProps> = ({
   }, [site, recordMap, lite])
 
   const keys = Object.keys(recordMap?.block || {})
-  const block = recordMap?.block?.[keys[0]]?.value 
+  const blockEntry = recordMap?.block?.[keys[0]]
+  const block =
+    (blockEntry as any)?.value?.value ||
+    (blockEntry as any)?.value ||
+    blockEntry
 
   const isBlogPost =
     block?.type === 'page' && block?.parent_table === 'collection'
@@ -230,12 +282,13 @@ export const NotionPage: React.FC<types.PageProps> = ({
   const canonicalPageUrl =
     !config.isDev && getCanonicalPageUrl(site, recordMap)(pageId)
 
-  const socialImage = mapImageUrl(
-    getPageProperty<string>('Social Image', block, recordMap) ||
-    (block as PageBlock).format?.page_cover ||
-    config.defaultPageCover,
-    block
-  ) ?? undefined
+  const socialImage =
+    mapImageUrl(
+      getPageProperty<string>('Social Image', block, recordMap) ||
+        (block as PageBlock).format?.page_cover ||
+        config.defaultPageCover,
+      block
+    ) ?? undefined
 
   const socialDescription =
     getPageProperty<string>('Description', block, recordMap) ||
