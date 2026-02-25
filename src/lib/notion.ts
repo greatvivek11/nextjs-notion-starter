@@ -10,6 +10,28 @@ import {
 import { notion } from './notion-api'
 import { getPreviewImageMap } from './preview-images'
 
+const withRetry = async <T>(
+  fn: () => Promise<T>,
+  retries = 5,
+  delay = 1000
+): Promise<T> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await fn()
+    } catch (err: any) {
+      if (i === retries - 1) throw err
+      console.warn(
+        `[Notion API Retry ${i + 1}/${retries}] Failed: ${
+          err.message
+        }. Retrying in ${delay}ms...`
+      )
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      delay *= 2
+    }
+  }
+  throw new Error('Unreachable')
+}
+
 const getNavigationLinkPages = async (): Promise<ExtendedRecordMap[]> => {
   const navigationLinkPageIds = (navigationLinks || [])
     .map((link) => link?.pageId)
@@ -19,12 +41,14 @@ const getNavigationLinkPages = async (): Promise<ExtendedRecordMap[]> => {
     return pMap(
       navigationLinkPageIds,
       async (navigationLinkPageId) =>
-        notion.getPage(navigationLinkPageId, {
-          chunkLimit: 1,
-          fetchMissingBlocks: false,
-          fetchCollections: false,
-          signFileUrls: false
-        }),
+        withRetry(() =>
+          notion.getPage(navigationLinkPageId, {
+            chunkLimit: 1,
+            fetchMissingBlocks: false,
+            fetchCollections: false,
+            signFileUrls: true
+          })
+        ),
       {
         concurrency: 4
       }
@@ -35,12 +59,14 @@ const getNavigationLinkPages = async (): Promise<ExtendedRecordMap[]> => {
 }
 
 export async function getPage(pageId: string): Promise<ExtendedRecordMap> {
-  let recordMap = await notion.getPage(pageId, {
-    // Disable signed URLs — they use img.notionusercontent.com which expires
-    // quickly, causing 404s on statically generated pages.
-    // Our custom mapImageUrl proxies images through notion.so/image/ instead.
-    signFileUrls: false
-  })
+  let recordMap = await withRetry(() =>
+    notion.getPage(pageId, {
+      // Disable signed URLs — they expire after ~1 hour and break SSG pages.
+      // Images are proxied through notion.so/image/ via mapImageUrl.
+      // PDFs are handled by our custom /api/notion-pdf proxy which signs on demand.
+      signFileUrls: false
+    })
+  )
 
   if (navigationStyle !== 'default') {
     // ensure that any pages linked to in the custom navigation header have

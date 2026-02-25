@@ -12,7 +12,7 @@ import {
 } from 'notion-utils'
 import React from 'react'
 import BodyClassName from 'react-body-classname'
-import { NotionRenderer } from 'react-notion-x'
+import { NotionRenderer, useNotionContext } from 'react-notion-x'
 import TweetEmbed from 'react-tweet-embed'
 import { useSearchParam } from 'react-use'
 
@@ -71,12 +71,79 @@ const Equation = dynamic(
     ssr: true
   }
 )
-const Pdf = dynamic(
-  () => import('react-notion-x/build/third-party/pdf').then((m) => m.Pdf),
-  {
-    ssr: true
-  }
+// We render react-pdf's Document/Page directly instead of using react-notion-x's
+// Pdf wrapper, because the library doesn't expose renderTextLayer/renderAnnotationLayer
+// options, causing duplicate plaintext rendering alongside each page canvas.
+const ReactPdfComponents = dynamic(
+  () =>
+    import('react-pdf').then((m) => {
+      m.pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${m.pdfjs.version}/legacy/build/pdf.worker.min.mjs`
+      // Return a simple component that uses Document + Page
+      const PdfViewer = ({ file }: { file: string }) => {
+        const [numPages, setNumPages] = React.useState(0)
+        return (
+          <m.Document
+            file={file}
+            onLoadSuccess={({ numPages: n }) => setNumPages(n)}
+          >
+            {Array.from({ length: numPages }, (_, i) => (
+              <m.Page
+                key={`page_${i + 1}`}
+                pageNumber={i + 1}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+            ))}
+          </m.Document>
+        )
+      }
+      return PdfViewer
+    }),
+  { ssr: false }
 )
+
+const CustomPdf = ({ file }: any) => {
+  const [mounted, setMounted] = React.useState(false)
+  const { recordMap } = useNotionContext()
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return null
+
+  // Find the page ID and PDF block ID from the recordMap
+  let pageId = ''
+  let pdfBlockId = ''
+
+  if (recordMap?.block) {
+    for (const [id, blockEntry] of Object.entries(recordMap.block)) {
+      const val = (blockEntry as any)?.value || blockEntry
+      if (val?.type === 'page' && !pageId) {
+        pageId = id
+      }
+      if (val?.type === 'pdf') {
+        const source = val?.properties?.source?.[0]?.[0]
+        if (
+          source === file ||
+          source?.includes(file) ||
+          file?.includes(source)
+        ) {
+          pdfBlockId = id
+        } else if (!pdfBlockId) {
+          pdfBlockId = id
+        }
+      }
+    }
+  }
+
+  let proxiedUrl = file
+  if (pageId && pdfBlockId) {
+    proxiedUrl = `/api/notion-pdf?pageId=${pageId}&blockId=${pdfBlockId}`
+  }
+
+  return <ReactPdfComponents file={proxiedUrl} />
+}
 
 const Modal = dynamic(
   () =>
@@ -166,7 +233,7 @@ export const NotionPage: React.FC<types.PageProps> = ({
       nextImage: Image,
       nextLink: Link,
       Code,
-      Pdf,
+      Pdf: CustomPdf,
       Collection,
       Equation,
       Modal,
