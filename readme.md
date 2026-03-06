@@ -1,84 +1,85 @@
-# NextJS Notion Starter Blog 
+# Next.js Notion Starter
 
-- This repo is based on [Travis Fischer's](https://transitivebullsh.it) - [NextJs-Notion-Starter-Kit]('https://github.com/transitive-bullshit/nextjs-notion-starter-kit'). All credit belongs to him. 😇
+A modern, high-performance starter kit for building websites with [Next.js](https://nextjs.org/) and using [Notion](https://www.notion.so/) as a headless CMS.
 
-## Setup
-1. `npm i` (use `-f` if needed. I know it's not a best practice.😅)
-2. `npm run dev`
-3. `npm run build`
-4. `npm start`
-5. `npm deploy` (requires Vercel login in cli)
-
-### ❗️Attention❗️ [Env Vars]
-  - Env vars are loaded from `next.config.js` (exposes env vars to browser) which ideally should be loaded from `.env` file, however, due to some issues I am unable to get it to work so for now this is the way.
+This project is a heavily optimized fork of Travis Fischer's [nextjs-notion-starter-kit](https://github.com/transitive-bullshit/nextjs-notion-starter-kit), upgraded for modern web standards.
 
 ## Key Features
-- 🤯 Notion-as-CMS
-- ⚡️ Next 14 Page router
-- 📖 SSG at build-time.
-- 🚀 ISR at runtime.
-- 
 
-## Key Differences
-- Upgraded to Next 14.
-- Removed yarn. Using npm.
-- Removed Travis's personal info.
-- Fixed Search issue.
-- Fixed ISR support which somehow wasn't working! (Added runtime config for dynamic pages).
-- Removed twitter integration.
+- 🚀 **Framework**: Built with **Next.js 16** and **React 19**.
+- 📂 **Routing**: Fully migrated to **App Router** for improved performance and developer experience.
+- 🤯 **Notion-as-CMS**: Use Notion to manage your content—no database required.
+- ⚡ **Performance**: 
+  - **ISR (Incremental Static Regeneration)** for lightning-fast page loads with dynamic updates.
+  - **Optimized Rendering**: Powered by `react-notion-x` for faithful Notion block reproduction.
+- 📄 **Advanced Features**:
+  - Custom **PDF Rendering** proxy to handle Notion's expiring S3 links.
+  - Built-in **Search** integration with Notion API.
+  - Native **RSS Feed** and **Sitemap** generation.
+  - Integrated **Analytics** and **Speed Insights** via Vercel.
 
-## Caveats
-- Requires Node server as **ISR** cannot work with static exports. [Static Export Unsupported Features ]('https://nextjs.org/docs/pages/building-your-application/deploying/static-exports#unsupported-features)
-- Social Links on side don't appear on full width pages.
-- Unsupported Notion features - Buttons, Link's color, Kanban boards view (status, Assigned to properties).
-- If deployed to Vercel -> API functions has a free limit of 1mb. Most functions in this repo almost hit that limit. 
-- Use `runtime=node` for APIs if required as `edge` runtime exceeds free tier limit of 1 mb.
+## Setup & Local Development
 
-## Roadmap
-- To migrate to App router.
-- Cleanup code.
-- Webpack Module Federation to export components so that this site can be natively integrated at runtime with another site.
+### Prerequisites
+- Node.js 18+
+- A Public Notion Page (to use as your root CMS page)
 
-## SSR/SSG/ISR
-- **SSR** - If you want to pre-render your site i.e., at compile time and then deploy to a static hosting platform (e.g., Github Pages), this is the approach used for this. Simply **REMOVE** the following code from `[pageId].tsx`. However, with this approach, any changes done in the Notion pages don't reflect dynamically once site is generated.
-    ```
-    export const config = {
-        runtime: 'nodejs', // or "edge"
-    }
-    ```
-- **ISR** - This is the _default_ approach used for this Notion-Next-CMS template. It regenerates the pages dynamically during runtime everytime there's any change in the Notion page/block/database. It **ALSO** generates pages at runtime which aren't pre-rendered using `fallback: 'blocking` property in `getStaticPaths`.
+### Quick Start
+1. **Clone and Install**:
+   ```bash
+   git clone https://github.com/greatvivek11/nextjs-notion-starter.git
+   cd nextjs-notion-starter
+   npm install
+   ```
 
+2. **Environment Variables**:
+   Copy `.env.example` to `.env` and fill in your details:
+   ```bash
+   cp .env.example .env
+   ```
+   *Required*: `ROOT_NOTION_PAGE_ID` (Found in the URL of your public Notion page).
 
-- **SSG** - If you want to render _all_ the pages dynamically at runtime, this is the approach. It is however, slow and is not SEO compatible.
+3. **Run Locally**:
+   ```bash
+   npm run dev
+   ```
+   Open [http://localhost:3000](http://localhost:3000) to see your site.
 
-    ```
-    export const getServerSideProps: GetServerSideProps = async ({ req, res, params }) => {
-        if (req.method !== 'GET') {
-            res.statusCode = 405
-            res.setHeader('Content-Type', 'application/json')
-            res.write(JSON.stringify({ error: 'method not allowed' }))
-            res.end()
-            return { props: {} }
-        }
-        const rawPageId = params?.pageId as string
+## Configuration
 
-        const ttlSeconds = 60
+Most of the site's behavior is controlled via `site.config.ts`. You can configure:
+- Site name, domain, and author details.
+- Social links (GitHub, Twitter, LinkedIn, etc.).
+- Navigation style (Default or Custom links).
+- Feature toggles (LQIP images, Redis caching, etc.).
 
-        res.setHeader(
-            'Cache-Control',
-            `public, max-age=${ttlSeconds}, stale-while-revalidate=${ttlSeconds}`
-        )
+For more details, see the [Configuration Docs](docs/Project_Structure.md).
 
+## Deployment
 
-        try {
-            const props = await resolveNotionPage(domain, rawPageId)
-            return { props: { ...props } }
-        } catch (err) {
-            console.error('page error', domain, rawPageId, err)
-            throw err
-        }
-    }
-    ```
-## Docs
-- [Project_Structure](docs/Project_Structure.md)
-- [text](docs/Notion.md)
+The easiest way to deploy is using [Vercel](https://vercel.com/):
+
+1. Push your code to GitHub.
+2. Connect your repo to Vercel.
+3. Add your Environment Variables in the Vercel dashboard.
+
+### Optimizing Vercel Deployments (CI Scoping)
+By default, Vercel triggers a build for every push. To avoid unnecessary builds when only documentation (like this README) or config files change, you can scope your build.
+
+**In Vercel Dashboard**:
+Settings > Git > **Ignored Build Step**
+
+Paste the following command:
+```bash
+git diff --quiet HEAD^ HEAD src/ public/ package.json next.config.js tsconfig.json site.config.ts biome.json
+```
+This tells Vercel to only proceed with the build if there are changes in the source code, public assets, or core configuration files.
+
+## Credits & Documentation
+
+- **Base Repo**: [Travis Fischer](https://github.com/transitive-bullshit/nextjs-notion-starter-kit)
+- **Detailed Docs**: Explore the [/docs](docs/) folder for system architecture and component details.
+
+## License
+
+MIT © [Vivek Kaushik](https://github.com/greatvivek11)

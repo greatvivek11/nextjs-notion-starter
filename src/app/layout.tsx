@@ -1,4 +1,5 @@
 import { Metadata } from 'next'
+import Script from 'next/script'
 // global styles shared across the entire site
 // used for rendering equations (optional)
 import 'katex/dist/katex.min.css'
@@ -72,7 +73,10 @@ export default function RootLayout({
   children: React.ReactNode
 }) {
   return (
-    <html lang='en'>
+    <html lang='en' suppressHydrationWarning>
+      <head>
+        <Script src='/theme.js' strategy='beforeInteractive' />
+      </head>
       <body>{children}</body>
     </html>
   )

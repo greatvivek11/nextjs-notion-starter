@@ -100,39 +100,16 @@ export async function getPage(pageId: string): Promise<ExtendedRecordMap> {
 }
 
 export async function search(params: SearchParams): Promise<SearchResults> {
-  const headers: Record<string, string> = {
-    Accept: '*/*',
-    'Content-Type': 'application/json'
-  }
-
-  // Pass auth token for authenticated search (higher rate limits + private pages)
-  if (process.env.NOTION_TOKEN) {
-    headers.cookie = `token_v2=${process.env.NOTION_TOKEN}`
-  }
-
-  return fetch('https://www.notion.so/api/v3/search', {
-    method: 'POST',
-    body: JSON.stringify({
-      type: 'BlocksInAncestor',
-      query: params.query,
-      ancestorId: parsePageId(params.ancestorId),
-      sort: {
-        field: 'relevance'
-      },
-      limit: 20,
-      source: 'quick_find_input_change',
-      filters: {
-        isDeletedOnly: false,
-        isNavigableOnly: false,
-        excludeTemplates: false,
-        requireEditPermissions: false,
-        ancestors: [],
-        createdBy: [],
-        editedBy: [],
-        lastEditedTime: {},
-        createdTime: {}
-      }
-    }),
-    headers
-  }).then((res) => res.json())
+  return notion.search({
+    query: params.query,
+    ancestorId: parsePageId(params.ancestorId),
+    type: 'BlocksInAncestor',
+    filters: {
+      isDeletedOnly: false,
+      isNavigableOnly: false,
+      excludeTemplates: false,
+      requireEditPermissions: false
+    },
+    ...params
+  } as any)
 }

@@ -6,6 +6,7 @@ import type { PageProps } from '@/lib/types'
 
 // This is needed to generate pages at runtime dynamically using ISR.
 export const runtime = 'nodejs'
+export const revalidate = Number(process.env.REVALIDATE) || 60
 
 async function getPageProps(pageId: string): Promise<PageProps> {
   try {
