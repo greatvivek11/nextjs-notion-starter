@@ -16,7 +16,7 @@ export interface SiteConfig {
   newsletter?: string
   youtube?: string
   zhihu?: string
-  mastodon?: string;
+  mastodon?: string
 
   defaultPageIcon?: string | null
   defaultPageCover?: string | null
@@ -28,7 +28,7 @@ export interface SiteConfig {
   isSearchEnabled?: boolean
 
   includeNotionIdInUrls?: boolean
-  showCollectionViewDropdown? :boolean,
+  showCollectionViewDropdown?: boolean
   pageUrlOverrides?: types.PageUrlOverridesMap
   pageUrlAdditions?: types.PageUrlOverridesMap
 

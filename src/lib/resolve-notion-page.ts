@@ -6,7 +6,9 @@ import { getSiteMap } from './get-site-map'
 import { getPage } from './notion'
 import type { PageProps, Site } from './types'
 
-export async function resolveNotionPage(rawPageId?: string): Promise<PageProps> {
+export async function resolveNotionPage(
+  rawPageId?: string
+): Promise<PageProps> {
   let pageId: string
   let recordMap: ExtendedRecordMap
 
@@ -38,7 +40,6 @@ export async function resolveNotionPage(rawPageId?: string): Promise<PageProps> 
         // recordMap = siteMap.pageMap[pageId]
 
         recordMap = await getPage(pageId)
-
       } else {
         // note: we're purposefully not caching URI to pageId mappings for 404s
         return {

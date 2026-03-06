@@ -1,11 +1,7 @@
 {
   "compilerOptions": {
     "target": "es2016",
-    "lib": [
-      "dom",
-      "dom.iterable",
-      "esnext"
-    ],
+    "lib": ["dom", "dom.iterable", "esnext"],
     "noEmit": true,
     "allowJs": true,
     "skipLibCheck": true,
@@ -19,26 +15,14 @@
     "isolatedModules": true,
     "jsx": "react-jsx",
     "baseUrl": ".",
-    "typeRoots": [
-      "./node_modules/@types"
-    ],
+    "typeRoots": ["./node_modules/@types"],
     "incremental": true,
     "paths": {
-      "@/components/*": [
-        "src/components/*"
-      ],
-      "@/lib/*": [
-        "src/lib/*"
-      ],
-      "@/styles/*": [
-        "src/styles/*"
-      ],
-      "@/pages/*": [
-        "src/pages/*"
-      ],
-      "@/public/*": [
-        "public/*"
-      ]
+      "@/components/*": ["src/components/*"],
+      "@/lib/*": ["src/lib/*"],
+      "@/styles/*": ["src/styles/*"],
+      "@/pages/*": ["src/pages/*"],
+      "@/public/*": ["public/*"]
     },
     "plugins": [
       {
@@ -47,9 +31,7 @@
     ],
     "strictNullChecks": false
   },
-  "exclude": [
-    "node_modules"
-  ],
+  "exclude": ["node_modules"],
   "include": [
     "next-env.d.ts",
     "**/*.ts",

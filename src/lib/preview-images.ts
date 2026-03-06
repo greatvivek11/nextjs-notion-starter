@@ -1,6 +1,10 @@
 import got from 'got'
 const lqip = require('lqip-modern')
-import type { ExtendedRecordMap, PreviewImage, PreviewImageMap } from 'notion-types'
+import type {
+  ExtendedRecordMap,
+  PreviewImage,
+  PreviewImageMap
+} from 'notion-types'
 import { getPageImageUrls, normalizeUrl } from 'notion-utils'
 import pMap from 'p-map'
 import pMemoize from 'p-memoize'

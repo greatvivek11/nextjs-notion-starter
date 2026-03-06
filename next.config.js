@@ -26,6 +26,11 @@ module.exports = withBundleAnalyzer({
     SHOW_COLLECTION_VIEW_DROPDOWN: process.env.SHOW_COLLECTION_VIEW_DROPDOWN,
     CRON_SECRET: process.env.CRON_SECRET
   },
+  // Lower SSG concurrency to prevent Notion 429s during build
+  experimental: {
+    workerThreads: false,
+    cpus: 1
+  },
   staticPageGenerationTimeout: 300,
   images: {
     remotePatterns: [

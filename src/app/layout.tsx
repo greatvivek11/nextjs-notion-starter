@@ -19,10 +19,10 @@ export const metadata: Metadata = {
   alternates: {
     canonical: '/',
     languages: {
-      'en-US': '/en-US',
+      'en-US': '/en-US'
     },
     media: {
-      'image/png': '/favicon.png',
+      'image/png': '/favicon.png'
     },
     types: {
       'application/rss+xml': '/feed.xml',
@@ -41,14 +41,14 @@ export const metadata: Metadata = {
       'image/apng': '/favicon.png',
       'image/gif': '/favicon.gif',
       'image/jpeg': '/favicon.jpg',
-      'image/png': '/favicon.png',
-    },
+      'image/png': '/favicon.png'
+    }
   },
   title: process.env.TITLE,
   description: process.env.DESCRIPTION,
   icons: {
     icon: '/favicon.png',
-    shortcut: '/favicon.png',
+    shortcut: '/favicon.png'
   },
   applicationName: 'Next.js Notion Starter Kit',
   creator: process.env.AUTHOR,
@@ -61,21 +61,19 @@ export const metadata: Metadata = {
     siteName: 'Next.js Notion Starter Kit',
     images: ['/favicon-192x192.png'],
     locale: 'en-US',
-    type: 'website',
+    type: 'website'
   },
-  authors: [{ name: process.env.AUTHOR, url: `https://${process.env.DOMAIN}` }],
+  authors: [{ name: process.env.AUTHOR, url: `https://${process.env.DOMAIN}` }]
 }
 
 export default function RootLayout({
-  children,
+  children
 }: {
   children: React.ReactNode
 }) {
   return (
-    <html lang="en">
-      <body>
-        {children}
-      </body>
+    <html lang='en'>
+      <body>{children}</body>
     </html>
   )
 }

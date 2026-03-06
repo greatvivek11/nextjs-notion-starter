@@ -70,14 +70,8 @@ export const newsletter: string | null = getSiteConfig('newsletter', null)
 // ----------------------------------------------------------------------------
 
 // default notion values for site-wide consistency (optional; may be overridden on a per-page basis)
-export const defaultPageIcon: string = getSiteConfig(
-  'defaultPageIcon',
-  ""
-)
-export const defaultPageCover: string = getSiteConfig(
-  'defaultPageCover',
-  ""
-)
+export const defaultPageIcon: string = getSiteConfig('defaultPageIcon', '')
+export const defaultPageCover: string = getSiteConfig('defaultPageCover', '')
 export const defaultPageCoverPosition: number = getSiteConfig(
   'defaultPageCoverPosition',
   0.5
@@ -145,7 +139,6 @@ export const site: Site = {
   rootNotionSpaceId,
   description
 }
-
 
 function cleanPageUrlMap(
   pageUrlMap: PageUrlOverridesMap,

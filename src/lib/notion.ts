@@ -12,7 +12,7 @@ import { getPreviewImageMap } from './preview-images'
 
 const withRetry = async <T>(
   fn: () => Promise<T>,
-  retries = 5,
+  retries = 8,
   delay = 1000
 ): Promise<T> => {
   for (let i = 0; i < retries; i++) {
@@ -20,12 +20,20 @@ const withRetry = async <T>(
       return await fn()
     } catch (err: any) {
       if (i === retries - 1) throw err
+
+      // Use longer delay for rate limit errors
+      const is429 =
+        err.message?.includes('429') ||
+        err.status === 429 ||
+        err.statusCode === 429
+      const currentDelay = is429 ? Math.max(delay, 3000) : delay
+
       console.warn(
-        `[Notion API Retry ${i + 1}/${retries}] Failed: ${
-          err.message
-        }. Retrying in ${delay}ms...`
+        `[Notion API Retry ${i + 1}/${retries}] ${
+          is429 ? '(Rate Limited) ' : ''
+        }Failed: ${err.message}. Retrying in ${currentDelay}ms...`
       )
-      await new Promise((resolve) => setTimeout(resolve, delay))
+      await new Promise((resolve) => setTimeout(resolve, currentDelay))
       delay *= 2
     }
   }
@@ -92,6 +100,16 @@ export async function getPage(pageId: string): Promise<ExtendedRecordMap> {
 }
 
 export async function search(params: SearchParams): Promise<SearchResults> {
+  const headers: Record<string, string> = {
+    Accept: '*/*',
+    'Content-Type': 'application/json'
+  }
+
+  // Pass auth token for authenticated search (higher rate limits + private pages)
+  if (process.env.NOTION_TOKEN) {
+    headers.cookie = `token_v2=${process.env.NOTION_TOKEN}`
+  }
+
   return fetch('https://www.notion.so/api/v3/search', {
     method: 'POST',
     body: JSON.stringify({
@@ -115,9 +133,6 @@ export async function search(params: SearchParams): Promise<SearchResults> {
         createdTime: {}
       }
     }),
-    headers: {
-      Accept: '*/*',
-      'Content-Type': 'application/json'
-    }
+    headers
   }).then((res) => res.json())
 }
