@@ -28,12 +28,8 @@ yarn-debug.log*
 yarn-error.log*
 
 # local env files
-.env
-.env.local
-.env.build
-.env.development.local
-.env.test.local
-.env.production.local
+.env*
+!.env.example
 .env.keys
 
 # vercel
