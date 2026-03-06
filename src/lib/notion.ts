@@ -1,7 +1,7 @@
 'use server'
 import { ExtendedRecordMap, SearchParams, SearchResults } from 'notion-types'
 import { mergeRecordMaps, parsePageId } from 'notion-utils'
-import pMap from 'p-map'
+// import pMap from 'p-map'
 import {
   // isPreviewImageSupportEnabled,
   navigationLinks,
@@ -46,9 +46,8 @@ const getNavigationLinkPages = async (): Promise<ExtendedRecordMap[]> => {
     .filter(Boolean)
 
   if (navigationStyle !== 'default' && navigationLinkPageIds.length) {
-    return pMap(
-      navigationLinkPageIds,
-      async (navigationLinkPageId) =>
+    return Promise.all(
+      navigationLinkPageIds.map(async (navigationLinkPageId) =>
         withRetry(() =>
           notion.getPage(navigationLinkPageId, {
             chunkLimit: 1,
@@ -56,10 +55,8 @@ const getNavigationLinkPages = async (): Promise<ExtendedRecordMap[]> => {
             fetchCollections: false,
             signFileUrls: true
           })
-        ),
-      {
-        concurrency: 4
-      }
+        )
+      )
     )
   }
 

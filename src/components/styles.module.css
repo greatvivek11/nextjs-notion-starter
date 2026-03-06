@@ -215,6 +215,30 @@
   }
 }
 
-.hidden {
-  visibility: hidden;
+
+.shiki-container {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 24px 10px -10px rgba(0, 0, 0, 0.05);
+  margin: 1.5em 0;
+}
+
+.shiki-container pre {
+  margin: 0 !important;
+  padding: 1.5em !important;
+  font-size: 0.9em !important;
+  line-height: 1.6 !important;
+  overflow-x: auto !important;
+}
+
+.shiki-loading {
+  background: #f6f8fa;
+  padding: 1.5em;
+  border-radius: 8px;
+  font-family: inherit;
+  opacity: 0.5;
+}
+
+:global(.dark-mode) .shiki-loading {
+  background: #24292e;
 }

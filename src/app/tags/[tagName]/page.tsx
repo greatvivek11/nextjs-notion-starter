@@ -3,11 +3,10 @@ import { domain } from '@/lib/config'
 import { getSiteMap } from '@/lib/get-site-map'
 import { resolveNotionPage } from '@/lib/resolve-notion-page'
 import { PageProps } from '@/lib/types'
-import omit from 'lodash.omit'
 import type { ExtendedRecordMap } from 'notion-types'
 import { normalizeTitle } from 'notion-utils'
 
-export const runtime = 'nodejs'
+export const revalidate = 60
 
 const tagsPropertyNameLowerCase = 'tags'
 
@@ -41,9 +40,11 @@ async function getPageProps(tagName: string): Promise<PageProps> {
             (galleryBlockEntry as any)?.value || galleryBlockEntry
 
           if (galleryBlock) {
+            const { [galleryBlock.id]: _removed, ...restBlocks } =
+              recordMap.block
             recordMap.block = {
               [galleryBlock.id]: galleryBlockEntry as any,
-              ...omit(recordMap.block, [galleryBlock.id])
+              ...restBlocks
             }
 
             const propertyToFilter = Object.entries(

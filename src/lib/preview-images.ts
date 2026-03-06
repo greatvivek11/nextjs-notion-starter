@@ -1,13 +1,9 @@
-import got from 'got'
-const lqip = require('lqip-modern')
 import type {
   ExtendedRecordMap,
   PreviewImage,
   PreviewImageMap
 } from 'notion-types'
 import { getPageImageUrls, normalizeUrl } from 'notion-utils'
-import pMap from 'p-map'
-import pMemoize from 'p-memoize'
 import { defaultPageCover, defaultPageIcon } from './config'
 import { mapImageUrl } from './map-image-url'
 
@@ -21,38 +17,37 @@ export async function getPreviewImageMap(
     .filter(Boolean)
 
   const previewImagesMap = Object.fromEntries(
-    await pMap(
-      urls,
-      async (url) => {
+    await Promise.all(
+      urls.map(async (url) => {
         const cacheKey = normalizeUrl(url)
         return [cacheKey, await getPreviewImage(url, { cacheKey })]
-      },
-      {
-        concurrency: 8
-      }
+      })
     )
   )
 
   return previewImagesMap
 }
 
+const previewImageCache = new Map<string, PreviewImage | null>()
+
 async function createPreviewImage(
   url: string,
   { cacheKey }: { cacheKey: string }
 ): Promise<PreviewImage | null> {
-  try {
-    const { body } = await got(url, { responseType: 'buffer' })
-    const result = await lqip(body)
-    const previewImage = {
-      originalWidth: result.metadata.originalWidth,
-      originalHeight: result.metadata.originalHeight,
-      dataURIBase64: result.metadata.dataURIBase64
-    }
-    return previewImage
-  } catch (err) {
-    console.warn('failed to create preview image', url, err.message)
-    return null
-  }
+  // LQIP is disabled to speed up builds.
+  // We return null here which effectively tells the renderer there's no preview image.
+  return null
 }
 
-export const getPreviewImage = pMemoize(createPreviewImage)
+export const getPreviewImage = async (
+  url: string,
+  { cacheKey }: { cacheKey: string }
+): Promise<PreviewImage | null> => {
+  if (previewImageCache.has(cacheKey)) {
+    return previewImageCache.get(cacheKey)!
+  }
+
+  const result = await createPreviewImage(url, { cacheKey })
+  previewImageCache.set(cacheKey, result)
+  return result
+}

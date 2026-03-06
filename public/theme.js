@@ -1,4 +1,4 @@
-(function () {
+;(function () {
   try {
     var darkMode = localStorage.getItem('darkMode')
     var systemDarkMode = window.matchMedia(

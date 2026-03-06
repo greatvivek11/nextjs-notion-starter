@@ -1,8 +1,8 @@
 'use client'
-import cs from 'classnames'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 import type { PageBlock } from 'notion-types'
 import {
   formatDate,
@@ -11,10 +11,8 @@ import {
   normalizeTitle
 } from 'notion-utils'
 import React from 'react'
-import BodyClassName from 'react-body-classname'
 import { NotionRenderer, useNotionContext } from 'react-notion-x'
 import TweetEmbed from 'react-tweet-embed'
-import { useSearchParam } from 'react-use'
 
 import * as config from '@/lib/config'
 import { mapImageUrl } from '@/lib/map-image-url'
@@ -22,6 +20,7 @@ import { getCanonicalPageUrl, mapPageUrl } from '@/lib/map-page-url'
 import { searchNotion } from '@/lib/search-notion'
 import type * as types from '@/lib/types'
 import { useDarkMode } from '@/lib/use-dark-mode'
+import { cn } from '@/lib/utils'
 
 import { showCollectionViewDropdown } from '@/lib/config'
 import { Footer } from './Footer'
@@ -35,25 +34,14 @@ import styles from './styles.module.css'
 // dynamic imports for optional components
 // -----------------------------------------------------------------------------
 
-const Code = dynamic(
-  () =>
-    import('react-notion-x/build/third-party/code').then(async (m) => {
-      // add / remove any prism syntaxes here
-      await Promise.allSettled([
-        import('prismjs/components/prism-bash.js'),
-        import('prismjs/components/prism-csharp.js'),
-        import('prismjs/components/prism-js-templates.js'),
-        import('prismjs/components/prism-python.js'),
-        import('prismjs/components/prism-rust.js'),
-        import('prismjs/components/prism-sql.js'),
-        import('prismjs/components/prism-yaml.js')
-      ])
-      return m.Code
-    }),
-  {
-    ssr: true
-  }
-)
+import { ShikiCode } from './ShikiCode'
+
+const Code = ({ block, className }: any) => {
+  const code = block.properties?.title?.[0]?.[0] || ''
+  const language = block.properties?.language?.[0]?.[0] || 'javascript'
+
+  return <ShikiCode code={code} language={language} className={className} />
+}
 
 const Collection = dynamic(
   () =>
@@ -226,7 +214,8 @@ export const NotionPage: React.FC<types.PageProps> = ({
   tagsPage,
   propertyToFilterName
 }) => {
-  const lite = useSearchParam('lite')
+  const searchParams = useSearchParams()
+  const lite = searchParams.get('lite')
 
   const components = React.useMemo(
     () => ({
@@ -358,14 +347,16 @@ export const NotionPage: React.FC<types.PageProps> = ({
         url={canonicalPageUrl}
       />
 
-      {isLiteMode && <BodyClassName className='notion-lite' />}
-      {isDarkMode && <BodyClassName className='dark-mode' />}
+      {/* {isLiteMode && <BodyClassName className='notion-lite' />}
+      {isDarkMode && <BodyClassName className='dark-mode' />} */}
 
       <NotionRenderer
-        bodyClassName={cs(
+        bodyClassName={cn(
           styles.notion,
           pageId === site.rootNotionPageId && 'index-page',
-          tagsPage && 'tags-page'
+          tagsPage && 'tags-page',
+          isLiteMode && 'notion-lite',
+          isDarkMode && 'dark-mode'
         )}
         darkMode={isDarkMode}
         components={components}

@@ -1,5 +1,5 @@
 import { getAllPagesInSpace, getPageProperty } from 'notion-utils'
-import pMemoize from 'p-memoize'
+// import pMemoize from 'p-memoize'
 import { rootNotionPageId, rootNotionSpaceId, site } from './config'
 
 import { includeNotionIdInUrls } from './config'
@@ -18,9 +18,21 @@ export async function getSiteMap(): Promise<types.SiteMap> {
   } as types.SiteMap
 }
 
-const getAllPages = pMemoize(getAllPagesImpl, {
-  cacheKey: (...args) => JSON.stringify(args)
-})
+const cache = new Map<string, Partial<types.SiteMap>>()
+
+const getAllPages = async (
+  rootNotionPageId: string,
+  rootNotionSpaceId: string
+): Promise<Partial<types.SiteMap>> => {
+  const cacheKey = JSON.stringify({ rootNotionPageId, rootNotionSpaceId })
+  if (cache.has(cacheKey)) {
+    return cache.get(cacheKey)!
+  }
+
+  const result = await getAllPagesImpl(rootNotionPageId, rootNotionSpaceId)
+  cache.set(cacheKey, result)
+  return result
+}
 
 async function getAllPagesImpl(
   rootNotionPageId: string,

@@ -1,4 +1,4 @@
-import got from 'got'
+// import got from 'got'
 import type { NextApiRequest, NextApiResponse } from 'next'
 import type { PageBlock } from 'notion-types'
 import {
@@ -131,7 +131,7 @@ async function isUrlReachable(url: string | null): Promise<boolean> {
   }
 
   try {
-    await got.head(url)
+    await fetch(url, { method: 'HEAD' })
     return true
   } catch (err) {
     return false
