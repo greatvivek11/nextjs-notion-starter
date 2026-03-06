@@ -1,4 +1,4 @@
-# NextJS 14 (Notion-as-CMS) Blog 
+# NextJS Notion Starter Blog 
 
 - This repo is based on [Travis Fischer's](https://transitivebullsh.it) - [NextJs-Notion-Starter-Kit]('https://github.com/transitive-bullshit/nextjs-notion-starter-kit'). All credit belongs to him. 😇
 

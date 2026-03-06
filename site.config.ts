@@ -1,5 +1,5 @@
-import { siteConfig } from '@/lib/site-config';
-import { NavigationStyle } from '@/lib/types';
+import { siteConfig } from '@/lib/site-config'
+import { NavigationStyle } from '@/lib/types'
 
 export default siteConfig({
   // the site's root Notion page (required)
@@ -13,7 +13,6 @@ export default siteConfig({
   name: process.env.NAME,
   domain: process.env.DOMAIN,
   author: process.env.AUTHOR,
-  revalidate: process.env.REVALIDATE,
 
   // open graph metadata (optional)
   description: process.env.DESCRIPTION,
@@ -55,6 +54,5 @@ export default siteConfig({
   // important pages. To use `navigationLinks`, set `navigationStyle` to `custom`.
   // navigationStyle: 'default'
   navigationStyle: process.env.NAVIGATION_STYLE as NavigationStyle,
-  navigationLinks: JSON.parse(process.env.NAVIGATION_LINKS),
-
+  navigationLinks: JSON.parse(process.env.NAVIGATION_LINKS)
 })

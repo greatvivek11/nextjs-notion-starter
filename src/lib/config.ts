@@ -31,9 +31,6 @@ export const rootNotionSpaceId: string | null = parsePageId(
   { uuid: true }
 )
 
-// optional to revalidate the page when the render mode is SSG or ISR
-export const revalidate = Number.parseInt(getSiteConfig('revalidate', '3600'))
-
 // optional whether or not to override the  page urls of Notion pages.
 export const pageUrlOverrides = cleanPageUrlMap(
   getSiteConfig('pageUrlOverrides', {}) || {},
@@ -73,14 +70,8 @@ export const newsletter: string | null = getSiteConfig('newsletter', null)
 // ----------------------------------------------------------------------------
 
 // default notion values for site-wide consistency (optional; may be overridden on a per-page basis)
-export const defaultPageIcon: string | null = getSiteConfig(
-  'defaultPageIcon',
-  null
-)
-export const defaultPageCover: string | null = getSiteConfig(
-  'defaultPageCover',
-  null
-)
+export const defaultPageIcon: string = getSiteConfig('defaultPageIcon', '')
+export const defaultPageCover: string = getSiteConfig('defaultPageCover', '')
 export const defaultPageCoverPosition: number = getSiteConfig(
   'defaultPageCoverPosition',
   0.5
@@ -91,7 +82,7 @@ export const defaultPageCoverPosition: number = getSiteConfig(
 // Optional whether or not to enable support for LQIP preview images
 export const isPreviewImageSupportEnabled: boolean = getSiteConfig(
   'isPreviewImageSupportEnabled',
-  false
+  true
 )
 
 // Optional whether or not to include the Notion ID in page URLs or just use slugs
@@ -115,7 +106,7 @@ export const navigationStyle: NavigationStyle = getSiteConfig(
 // Optional - navigation links to be shown in the page header if navigationStyle = 'custom'
 export const navigationLinks: Array<NavigationLink | null> = getSiteConfig(
   'navigationLinks',
-  null
+  []
 )
 
 // Optional whether or not to enable search
@@ -148,7 +139,6 @@ export const site: Site = {
   rootNotionSpaceId,
   description
 }
-
 
 function cleanPageUrlMap(
   pageUrlMap: PageUrlOverridesMap,

@@ -4,23 +4,12 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 })
 
 module.exports = withBundleAnalyzer({
-  webpack: (config, { isServer }) => {
-    if (!isServer) {
-      config.cache = {
-        type: 'filesystem',
-        buildDependencies: {
-          config: [__filename],
-        },
-      };
-    }
-    return config;
-  },
+  turbopack: {},
   env: {
     ROOT_NOTION_PAGE_ID: process.env.ROOT_NOTION_PAGE_ID,
     ROOT_NOTION_SPACE_ID: process.env.ROOT_NOTION_SPACE_ID,
     ABOUT_PAGE_ID: process.env.ABOUT_PAGE_ID,
     BLOG_PAGE_ID: process.env.BLOG_PAGE_ID,
-    REVALIDATE: process.env.REVALIDATE,
     GITHUB: process.env.GITHUB,
     LINKEDIN: process.env.LINKEDIN,
     YOUTUBE: process.env.YOUTUBE,
@@ -35,16 +24,52 @@ module.exports = withBundleAnalyzer({
     NAVIGATION_STYLE: process.env.NAVIGATION_STYLE,
     NAVIGATION_LINKS: process.env.NAVIGATION_LINKS,
     SHOW_COLLECTION_VIEW_DROPDOWN: process.env.SHOW_COLLECTION_VIEW_DROPDOWN,
+    CRON_SECRET: process.env.CRON_SECRET
+  },
+  // Lower SSG concurrency to prevent Notion 429s during build
+  experimental: {
+    workerThreads: false,
+    cpus: 1
   },
   staticPageGenerationTimeout: 300,
   images: {
-    domains: [
-      'www.notion.so',
-      'notion.so',
-      'images.unsplash.com',
-      'pbs.twimg.com',
-      'abs.twimg.com',
-      's3.us-west-2.amazonaws.com',
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        port: '',
+        pathname: '/**'
+      },
+      {
+        protocol: 'https',
+        hostname: 'pbs.twimg.com',
+        port: '',
+        pathname: '/**'
+      },
+      {
+        protocol: 'https',
+        hostname: 'abs.twimg.com',
+        port: '',
+        pathname: '/**'
+      },
+      {
+        protocol: 'https',
+        hostname: 's3.us-west-2.amazonaws.com',
+        port: '',
+        pathname: '/**'
+      },
+      {
+        protocol: 'https',
+        hostname: 'www.notion.so',
+        port: '',
+        pathname: '/**'
+      },
+      {
+        protocol: 'https',
+        hostname: 'notion.so',
+        port: '',
+        pathname: '/**'
+      }
     ],
     formats: ['image/avif', 'image/webp'],
     dangerouslyAllowSVG: true,

@@ -8,7 +8,7 @@
  */
 
 .notion {
-  --notion-max-width: 720px;
+  --notion-max-width: 65vw;
   --notion-header-height: 54px;
 }
 
@@ -19,7 +19,7 @@
 
 .index-page,
 .tags-page {
-  --notion-max-width: 900px;
+  --notion-max-width: 65vw;
 }
 
 .tags-page .notion-collection-header {
@@ -53,7 +53,7 @@
 }
 
 .notion-header .notion-nav-header {
-  max-width: 1100px;
+  max-width: 65vw;
   margin: 0 auto;
 }
 
@@ -202,7 +202,7 @@
 .notion-page-cover-wrapper,
 .notion-page-cover-wrapper span,
 .notion-page-cover-wrapper img {
-  max-width: 1200px !important;
+  max-width: 65vw !important;
   border-radius: 24px;
 }
 
@@ -365,6 +365,87 @@
 
 .notion-row {
   overflow: unset;
+}
+
+/* The library uses: width: calc((100vw + var(--notion-max-width)) / 2)
+ * With 65vw content, this = 82.5vw. The aside sits in the remaining 17.5vw.
+ * Use overflow-x: clip (not hidden) to prevent horizontal scrollbar
+ * while preserving position: sticky on the aside. */
+.notion-page-scroller {
+  overflow-x: clip;
+}
+
+/* Override the library's min-width: 1300px breakpoint to show aside earlier */
+@media (min-width: 1000px) and (min-height: 300px) {
+  .notion-page-content-has-aside {
+    display: flex;
+    flex-direction: row;
+    width: calc((100vw + var(--notion-max-width)) / 2);
+  }
+
+  .notion-page-content-has-aside .notion-aside {
+    display: flex;
+  }
+
+  .notion-page-content-has-aside .notion-page-content-inner {
+    width: var(--notion-max-width);
+    max-width: var(--notion-max-width);
+  }
+}
+
+.notion-aside {
+  width: calc(17.5vw - 2.5rem);
+  min-width: 0 !important;
+  flex: 0 0 auto;
+  margin-left: 1.5rem;
+  margin-right: 0.5rem;
+  text-align: left;
+  align-items: flex-start !important;
+}
+
+/* Override the library's forced min-width: 222px */
+.notion-aside-table-of-contents {
+  min-width: 0 !important;
+  width: 100%;
+  align-items: flex-start !important;
+}
+
+.notion-aside .notion-aside-table-of-contents-header {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-weight: 600;
+  opacity: 0.6;
+  margin-bottom: 0.75em;
+  text-align: left;
+}
+
+.notion-aside .notion-aside-table-of-contents {
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+}
+
+.notion-aside .notion-table-of-contents-item {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  display: block;
+  padding: 2px 0;
+  text-align: left;
+}
+
+.notion-aside .notion-table-of-contents-item-body {
+  white-space: normal;
+  overflow-wrap: break-word;
+  word-wrap: break-word;
+  text-align: left;
+}
+
+@media only screen and (max-width: 900px) {
+  .notion-aside {
+    display: none !important;
+  }
 }
 
 /* if you don't want rounded page icon images, remove this */

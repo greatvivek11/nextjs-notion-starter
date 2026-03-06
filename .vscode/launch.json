@@ -11,9 +11,9 @@
         "NODE_OPTIONS": "--inspect"
       },
       "presentation": {
-        "hidden": false,
+        "hidden": false
       },
-      "autoAttachChildProcesses": true,
+      "autoAttachChildProcesses": true
     },
     {
       "type": "chrome",
@@ -23,9 +23,7 @@
       "userDataDir": true,
       "url": "http://localhost:3000",
       "runtimeExecutable": "/Applications/Brave Browser.app/Contents/MacOS/Brave Browser",
-      "cascadeTerminateToConfigurations": [
-        "Launch Next App"
-      ],
+      "cascadeTerminateToConfigurations": ["Launch Next App"],
       "presentation": {
         "hidden": true
       },
@@ -34,16 +32,13 @@
         "killOnServerStop": true,
         "pattern": "listening on port ([0-9]+)",
         "uriFormat": "http://localhost:%s"
-      },
+      }
     }
   ],
   "compounds": [
     {
       "name": "Launch App",
-      "configurations": [
-        "Launch Brave",
-        "Launch Next App"
-      ]
+      "configurations": ["Launch Brave", "Launch Next App"]
     }
-  ],
+  ]
 }

@@ -1,6 +1,5 @@
 ```
 .
-├── README.md
 ├── biome.json
 ├── docs
 │   ├── Env.md
@@ -21,8 +20,19 @@
 │   │   ├── Inter-Regular.ttf
 │   │   └── Inter-SemiBold.ttf
 │   └── manifest.json
+├── readme.md
 ├── site.config.ts
 ├── src
+│   ├── app
+│   │   ├── [pageId]
+│   │   ├── error.tsx
+│   │   ├── layout.tsx
+│   │   ├── loading.tsx
+│   │   ├── not-found.tsx
+│   │   ├── page.tsx
+│   │   ├── robots.ts
+│   │   ├── sitemap.ts
+│   │   └── tags
 │   ├── components
 │   │   ├── ErrorPage.tsx
 │   │   ├── Footer.tsx
@@ -57,23 +67,12 @@
 │   │   ├── types.ts
 │   │   └── use-dark-mode.ts
 │   ├── pages
-│   │   ├── 404.tsx
-│   │   ├── [pageId].tsx
-│   │   ├── _app.tsx
-│   │   ├── _document.tsx
-│   │   ├── _error.tsx
-│   │   ├── api
-│   │   ├── feed.tsx
-│   │   ├── index.tsx
-│   │   ├── robots.txt.tsx
-│   │   ├── sitemap.xml.tsx
-│   │   └── tags
+│   │   └── api
 │   └── styles
 │       ├── global.css
 │       ├── notion.css
 │       └── prism-theme.css
 ├── tsconfig.json
-├── turbo.json
 └── vercel.json
 
-11 directories, 65 files
+13 directories, 62 files

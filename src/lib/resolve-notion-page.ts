@@ -4,19 +4,11 @@ import * as acl from './acl'
 import { pageUrlAdditions, pageUrlOverrides, site } from './config'
 import { getSiteMap } from './get-site-map'
 import { getPage } from './notion'
-import type { Site } from './types'
+import type { PageProps, Site } from './types'
 
-export interface NotionPage {
-  site: Site;
-  recordMap: ExtendedRecordMap;
-  pageId: string;
-  error?: {
-    message?: string;
-    statusCode: number;
-  }
-}
-
-export async function resolveNotionPage(domain: string, rawPageId?: string): Promise<NotionPage> {
+export async function resolveNotionPage(
+  rawPageId?: string
+): Promise<PageProps> {
   let pageId: string
   let recordMap: ExtendedRecordMap
 
@@ -48,12 +40,11 @@ export async function resolveNotionPage(domain: string, rawPageId?: string): Pro
         // recordMap = siteMap.pageMap[pageId]
 
         recordMap = await getPage(pageId)
-
       } else {
         // note: we're purposefully not caching URI to pageId mappings for 404s
         return {
-          site: null,
-          recordMap: null,
+          site: undefined,
+          recordMap: undefined,
           pageId,
           error: {
             message: `Not found "${rawPageId}"`,

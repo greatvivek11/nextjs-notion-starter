@@ -1,9 +1,8 @@
-import React from 'react'
+'use client'
+import cs from 'classnames'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
-import { useRouter } from 'next/router'
-import cs from 'classnames'
 import type { PageBlock } from 'notion-types'
 import {
   formatDate,
@@ -11,8 +10,9 @@ import {
   getPageProperty,
   normalizeTitle
 } from 'notion-utils'
+import React from 'react'
 import BodyClassName from 'react-body-classname'
-import { NotionRenderer } from 'react-notion-x'
+import { NotionRenderer, useNotionContext } from 'react-notion-x'
 import TweetEmbed from 'react-tweet-embed'
 import { useSearchParam } from 'react-use'
 
@@ -23,43 +23,127 @@ import { searchNotion } from '@/lib/search-notion'
 import type * as types from '@/lib/types'
 import { useDarkMode } from '@/lib/use-dark-mode'
 
+import { showCollectionViewDropdown } from '@/lib/config'
 import { Footer } from './Footer'
-import { Loading } from './Loading'
 import { NotionPageHeader } from './NotionPageHeader'
 import { Page404 } from './Page404'
 import { PageAside } from './PageAside'
 import { PageHead } from './PageHead'
 import styles from './styles.module.css'
-import { showCollectionViewDropdown } from '@/lib/config'
 
 // -----------------------------------------------------------------------------
 // dynamic imports for optional components
 // -----------------------------------------------------------------------------
 
-const Code = dynamic(() =>
-  import('react-notion-x/build/third-party/code').then(async (m) => {
-    // add / remove any prism syntaxes here
-    await Promise.allSettled([
-      import('prismjs/components/prism-bash.js'),
-      import('prismjs/components/prism-csharp.js'),
-      import('prismjs/components/prism-js-templates.js'),
-      import('prismjs/components/prism-python.js'),
-      import('prismjs/components/prism-rust.js'),
-      import('prismjs/components/prism-sql.js'),
-      import('prismjs/components/prism-yaml.js')
-    ])
-    return m.Code
-  })
+const Code = dynamic(
+  () =>
+    import('react-notion-x/build/third-party/code').then(async (m) => {
+      // add / remove any prism syntaxes here
+      await Promise.allSettled([
+        import('prismjs/components/prism-bash.js'),
+        import('prismjs/components/prism-csharp.js'),
+        import('prismjs/components/prism-js-templates.js'),
+        import('prismjs/components/prism-python.js'),
+        import('prismjs/components/prism-rust.js'),
+        import('prismjs/components/prism-sql.js'),
+        import('prismjs/components/prism-yaml.js')
+      ])
+      return m.Code
+    }),
+  {
+    ssr: true
+  }
 )
 
-const Collection = dynamic(() =>
-  import('react-notion-x/build/third-party/collection').then(
-    (m) => m.Collection
-  )
+const Collection = dynamic(
+  () =>
+    import('react-notion-x/build/third-party/collection').then(
+      (m) => m.Collection
+    ),
+  {
+    ssr: true
+  }
 )
-const Equation = dynamic(() =>
-  import('react-notion-x/build/third-party/equation').then((m) => m.Equation)
+const Equation = dynamic(
+  () =>
+    import('react-notion-x/build/third-party/equation').then((m) => m.Equation),
+  {
+    ssr: true
+  }
 )
+// We render react-pdf's Document/Page directly instead of using react-notion-x's
+// Pdf wrapper, because the library doesn't expose renderTextLayer/renderAnnotationLayer
+// options, causing duplicate plaintext rendering alongside each page canvas.
+const ReactPdfComponents = dynamic(
+  () =>
+    import('react-pdf').then((m) => {
+      m.pdfjs.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${m.pdfjs.version}/legacy/build/pdf.worker.min.mjs`
+      // Return a simple component that uses Document + Page
+      const PdfViewer = ({ file }: { file: string }) => {
+        const [numPages, setNumPages] = React.useState(0)
+        return (
+          <m.Document
+            file={file}
+            onLoadSuccess={({ numPages: n }) => setNumPages(n)}
+          >
+            {Array.from({ length: numPages }, (_, i) => (
+              <m.Page
+                key={`page_${i + 1}`}
+                pageNumber={i + 1}
+                renderTextLayer={false}
+                renderAnnotationLayer={false}
+              />
+            ))}
+          </m.Document>
+        )
+      }
+      return PdfViewer
+    }),
+  { ssr: false }
+)
+
+const CustomPdf = ({ file }: any) => {
+  const [mounted, setMounted] = React.useState(false)
+  const { recordMap } = useNotionContext()
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) return null
+
+  // Find the page ID and PDF block ID from the recordMap
+  let pageId = ''
+  let pdfBlockId = ''
+
+  if (recordMap?.block) {
+    for (const [id, blockEntry] of Object.entries(recordMap.block)) {
+      const val = (blockEntry as any)?.value || blockEntry
+      if (val?.type === 'page' && !pageId) {
+        pageId = id
+      }
+      if (val?.type === 'pdf') {
+        const source = val?.properties?.source?.[0]?.[0]
+        if (
+          source === file ||
+          source?.includes(file) ||
+          file?.includes(source)
+        ) {
+          pdfBlockId = id
+        } else if (!pdfBlockId) {
+          pdfBlockId = id
+        }
+      }
+    }
+  }
+
+  let proxiedUrl = file
+  if (pageId && pdfBlockId) {
+    proxiedUrl = `/api/notion-pdf?pageId=${pageId}&blockId=${pdfBlockId}`
+  }
+
+  return <ReactPdfComponents file={proxiedUrl} />
+}
 
 const Modal = dynamic(
   () =>
@@ -68,7 +152,7 @@ const Modal = dynamic(
       return m.Modal
     }),
   {
-    ssr: false
+    ssr: true
   }
 )
 
@@ -76,10 +160,10 @@ const Tweet = ({ id }: { id: string }) => {
   return <TweetEmbed tweetId={id} />
 }
 
-const propertyLastEditedTimeValue = (
+function propertyLastEditedTimeValue(
   { block, pageHeader },
   defaultFn: () => React.ReactNode
-) => {
+): React.ReactNode {
   if (pageHeader && block?.last_edited_time) {
     return `Last updated ${formatDate(block?.last_edited_time, {
       month: 'long'
@@ -106,10 +190,10 @@ const propertyDateValue = (
   return defaultFn()
 }
 
-const propertyTextValue = (
+function propertyTextValue(
   { schema, pageHeader },
   defaultFn: () => React.ReactNode
-) => {
+): React.ReactNode {
   if (pageHeader && schema?.name?.toLowerCase() === 'author') {
     return <b>{defaultFn()}</b>
   }
@@ -117,10 +201,10 @@ const propertyTextValue = (
   return defaultFn()
 }
 
-const propertySelectValue = (
+function propertySelectValue(
   { schema, value, key, pageHeader },
   defaultFn: () => React.ReactNode
-) => {
+): React.ReactNode {
   value = normalizeTitle(value)
 
   if (pageHeader && schema.type === 'multi_select' && value) {
@@ -142,7 +226,6 @@ export const NotionPage: React.FC<types.PageProps> = ({
   tagsPage,
   propertyToFilterName
 }) => {
-  const router = useRouter()
   const lite = useSearchParam('lite')
 
   const components = React.useMemo(
@@ -150,6 +233,7 @@ export const NotionPage: React.FC<types.PageProps> = ({
       nextImage: Image,
       nextLink: Link,
       Code,
+      Pdf: CustomPdf,
       Collection,
       Equation,
       Modal,
@@ -168,6 +252,31 @@ export const NotionPage: React.FC<types.PageProps> = ({
 
   const { isDarkMode } = useDarkMode()
 
+  // Hide images that fail to load (e.g. expired signed URLs)
+  React.useEffect(() => {
+    const handleImageError = (e: Event) => {
+      const img = e.target as HTMLImageElement
+      if (img.tagName !== 'IMG') return
+
+      // Only handle images inside Notion containers
+      const notionEl = img.closest('.notion')
+      if (!notionEl) return
+
+      img.style.display = 'none'
+
+      // Collapse the cover container if it's a cover/card image
+      const coverWrapper = img.closest(
+        '.notion-page-cover-wrapper, .notion-collection-card-cover'
+      )
+      if (coverWrapper instanceof HTMLElement) {
+        coverWrapper.style.display = 'none'
+      }
+    }
+
+    document.addEventListener('error', handleImageError, true)
+    return () => document.removeEventListener('error', handleImageError, true)
+  }, [])
+
   const siteMapPageUrl = React.useMemo(() => {
     const params: any = {}
     if (lite) params.lite = lite
@@ -177,7 +286,11 @@ export const NotionPage: React.FC<types.PageProps> = ({
   }, [site, recordMap, lite])
 
   const keys = Object.keys(recordMap?.block || {})
-  const block = recordMap?.block?.[keys[0]]?.value
+  const blockEntry = recordMap?.block?.[keys[0]]
+  const block =
+    (blockEntry as any)?.value?.value ||
+    (blockEntry as any)?.value ||
+    blockEntry
 
   const isBlogPost =
     block?.type === 'page' && block?.parent_table === 'collection'
@@ -194,10 +307,6 @@ export const NotionPage: React.FC<types.PageProps> = ({
   )
 
   const footer = React.useMemo(() => <Footer />, [])
-
-  if (router.isFallback) {
-    return <Loading />
-  }
 
   if (error || !site || !block) {
     return <Page404 site={site} pageId={pageId} error={error} />
@@ -226,12 +335,13 @@ export const NotionPage: React.FC<types.PageProps> = ({
   const canonicalPageUrl =
     !config.isDev && getCanonicalPageUrl(site, recordMap)(pageId)
 
-  const socialImage = mapImageUrl(
-    getPageProperty<string>('Social Image', block, recordMap) ||
-    (block as PageBlock).format?.page_cover ||
-    config.defaultPageCover,
-    block
-  )
+  const socialImage =
+    mapImageUrl(
+      getPageProperty<string>('Social Image', block, recordMap) ||
+        (block as PageBlock).format?.page_cover ||
+        config.defaultPageCover,
+      block
+    ) ?? undefined
 
   const socialDescription =
     getPageProperty<string>('Description', block, recordMap) ||
@@ -276,7 +386,7 @@ export const NotionPage: React.FC<types.PageProps> = ({
         searchNotion={config.isSearchEnabled ? searchNotion : null}
         pageAside={pageAside}
         footer={footer}
-        pageTitle={tagsPage && propertyToFilterName ? title : null}
+        pageTitle={tagsPage && propertyToFilterName ? title : undefined}
       />
     </>
   )
