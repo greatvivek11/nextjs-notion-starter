@@ -3,9 +3,11 @@ import { useDarkMode } from '@/lib/use-dark-mode'
 import { cn } from '@/lib/utils'
 import { IoMoonSharp } from '@react-icons/all-files/io5/IoMoonSharp'
 import { IoSunnyOutline } from '@react-icons/all-files/io5/IoSunnyOutline'
+import Image from 'next/image'
+import Link from 'next/link'
 import * as types from 'notion-types'
 import * as React from 'react'
-import { Breadcrumbs, Header, Search, useNotionContext } from 'react-notion-x'
+import { Header, Search, useNotionContext } from 'react-notion-x'
 import styles from './styles.module.css'
 
 const ToggleThemeButton = () => {
@@ -59,7 +61,16 @@ export const NotionPageHeader: React.FC<{
   return (
     <header className='notion-header'>
       <div className='notion-nav-header'>
-        <Breadcrumbs block={block} rootOnly={true} />
+        <Link href='/' className='navbar-home-link'>
+          <Image
+            src='/favicon.png'
+            alt='Home'
+            width={32}
+            height={32}
+            className='navbar-avatar'
+          />
+          <span className='navbar-site-name'>Vivek Kaushik</span>
+        </Link>
 
         <div className='notion-nav-header-rhs breadcrumbs'>
           {navigationLinks

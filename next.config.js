@@ -29,7 +29,7 @@ module.exports = withBundleAnalyzer({
   // Lower SSG concurrency to prevent Notion 429s during build
   experimental: {
     workerThreads: false,
-    cpus: 1
+    cpus: 2
   },
   staticPageGenerationTimeout: 300,
   images: {

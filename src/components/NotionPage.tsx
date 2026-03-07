@@ -12,7 +12,6 @@ import {
 } from 'notion-utils'
 import React from 'react'
 import { NotionRenderer, useNotionContext } from 'react-notion-x'
-import TweetEmbed from 'react-tweet-embed'
 
 import * as config from '@/lib/config'
 import { mapImageUrl } from '@/lib/map-image-url'
@@ -34,7 +33,17 @@ import styles from './styles.module.css'
 // dynamic imports for optional components
 // -----------------------------------------------------------------------------
 
-import { ShikiCode } from './ShikiCode'
+const ShikiCode = dynamic(
+  () => import('./ShikiCode').then((m) => m.ShikiCode),
+  {
+    ssr: false,
+    loading: () => (
+      <pre className='shiki-loading'>
+        <code>{''}</code>
+      </pre>
+    )
+  }
+)
 
 const Code = ({ block, className }: any) => {
   const code = block.properties?.title?.[0]?.[0] || ''
@@ -144,6 +153,10 @@ const Modal = dynamic(
   }
 )
 
+const TweetEmbed = dynamic(() => import('react-tweet-embed'), {
+  ssr: false
+})
+
 const Tweet = ({ id }: { id: string }) => {
   return <TweetEmbed tweetId={id} />
 }
@@ -219,7 +232,13 @@ export const NotionPage: React.FC<types.PageProps> = ({
 
   const components = React.useMemo(
     () => ({
-      nextImage: Image,
+      nextImage: ({ priority, ...props }: any) => {
+        // Prioritize cover images for better LCP
+        const isCover =
+          props.src?.includes('table=block') ||
+          props.className?.includes('notion-page-cover')
+        return <Image {...props} priority={priority || isCover} />
+      },
       nextLink: Link,
       Code,
       Pdf: CustomPdf,

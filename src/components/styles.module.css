@@ -46,7 +46,7 @@
 
 .footer {
   width: 100%;
-  max-width: 65vw;
+  max-width: var(--notion-max-width);
   margin: auto auto 0;
   padding: 8px;
 
@@ -54,6 +54,7 @@
   flex-direction: row;
   justify-content: space-between;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .copyright {
