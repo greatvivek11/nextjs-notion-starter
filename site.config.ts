@@ -1,6 +1,19 @@
 import { siteConfig } from '@/lib/site-config'
 import { NavigationStyle } from '@/lib/types'
 
+function parseJsonEnv<T>(value: string | undefined, fallback: T): T {
+  if (!value) {
+    return fallback
+  }
+
+  try {
+    return JSON.parse(value) as T
+  } catch (error) {
+    console.warn(`Invalid JSON env value ignored: ${value}`)
+    return fallback
+  }
+}
+
 export default siteConfig({
   // the site's root Notion page (required)
   rootNotionPageId: process.env.ROOT_NOTION_PAGE_ID,
@@ -46,13 +59,13 @@ export default siteConfig({
   // any pages defined here will override their default URL paths
   // example:
   //
-  pageUrlOverrides: JSON.parse(process.env.PAGE_URL_OVERRIDES || '{}'),
-  pageUrlAdditions: JSON.parse(process.env.PAGE_URL_ADDITIONS || '{}'),
+  pageUrlOverrides: parseJsonEnv(process.env.PAGE_URL_OVERRIDES, {}),
+  pageUrlAdditions: parseJsonEnv(process.env.PAGE_URL_ADDITIONS, {}),
   // pageUrlOverrides: null,
 
   // whether to use the default notion navigation style or a custom one with links to
   // important pages. To use `navigationLinks`, set `navigationStyle` to `custom`.
   // navigationStyle: 'default'
   navigationStyle: process.env.NAVIGATION_STYLE as NavigationStyle,
-  navigationLinks: JSON.parse(process.env.NAVIGATION_LINKS)
+  navigationLinks: parseJsonEnv(process.env.NAVIGATION_LINKS, [])
 })

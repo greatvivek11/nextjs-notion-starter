@@ -19,28 +19,6 @@ export const metadata: Metadata = {
     canonical: '/',
     languages: {
       'en-US': '/en-US'
-    },
-    media: {
-      'image/png': '/favicon.png'
-    },
-    types: {
-      'application/rss+xml': '/feed.xml',
-      'application/atom+xml': '/feed.xml',
-      'application/feed+json': '/feed.json',
-      'application/json': '/feed.json',
-      'text/calendar': '/feed.ics',
-      'text/html': '/sitemap.xml',
-      'text/plain': '/robots.txt',
-      'text/xml': '/sitemap.xml',
-      'image/svg+xml': '/favicon.svg',
-      'image/webp': '/favicon.webp',
-      'image/x-icon': '/favicon.ico',
-      'image/vnd.microsoft.icon': '/favicon.ico',
-      'image/avif': '/favicon.avif',
-      'image/apng': '/favicon.png',
-      'image/gif': '/favicon.gif',
-      'image/jpeg': '/favicon.jpg',
-      'image/png': '/favicon.png'
     }
   },
   title: process.env.TITLE,

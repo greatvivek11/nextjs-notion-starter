@@ -2,9 +2,13 @@
 .
 ├── biome.json
 ├── docs
-│   ├── Env.md
+│   ├── Blueprint.md
+│   ├── Enhancements.md
 │   ├── Notion.md
-│   └── Project_Structure.md
+│   ├── Project_Structure.md
+│   ├── System_Architecture.md
+│   ├── UI_Components.md
+│   └── fix
 ├── next-env.d.ts
 ├── next.config.js
 ├── package-lock.json
@@ -20,7 +24,7 @@
 │   │   ├── Inter-Regular.ttf
 │   │   └── Inter-SemiBold.ttf
 │   └── manifest.json
-├── readme.md
+├── README.md
 ├── site.config.ts
 ├── src
 │   ├── app
@@ -75,4 +79,23 @@
 ├── tsconfig.json
 └── vercel.json
 
-13 directories, 62 files
+This repo is split between App Router page rendering and Pages Router API routes:
+
+- `src/app`
+  - Main page entrypoints, platform routes (`sitemap.ts`, `robots.ts`), and the dynamic Notion page/tag routes.
+- `src/components`
+  - Renderer composition, header/footer/sidebar UI, error/loading states, and page metadata helpers.
+- `src/lib`
+  - Configuration, Notion API access, URL mapping, search helpers, dark mode state, and shared types.
+- `src/pages/api`
+  - Search, social image, PDF proxy, cron, and page info endpoints.
+- `site.config.ts`
+  - Thin adapter from env vars to the internal site config shape.
+- `.env.example`
+  - Example runtime configuration, especially required env var names and JSON-backed options.
+
+Useful docs:
+- `docs/Notion.md`: how to obtain the root public Notion page ID
+- `docs/System_Architecture.md`: request/data flow and integration points
+- `docs/UI_Components.md`: renderer/layout/styling notes
+- `docs/Blueprint.md`: onboarding notes for contributors

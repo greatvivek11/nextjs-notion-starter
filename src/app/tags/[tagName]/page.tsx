@@ -1,14 +1,12 @@
 import { NotionPage } from '@/components/NotionPage'
 import { domain } from '@/lib/config'
-import { getSiteMap } from '@/lib/get-site-map'
 import { resolveNotionPage } from '@/lib/resolve-notion-page'
+import { extractTagNames, getTagsContext } from '@/lib/tags'
 import { PageProps } from '@/lib/types'
 import type { ExtendedRecordMap } from 'notion-types'
 import { normalizeTitle } from 'notion-utils'
 
 export const revalidate = 60
-
-const tagsPropertyNameLowerCase = 'tags'
 
 async function getPageProps(tagName: string): Promise<PageProps> {
   try {
@@ -17,82 +15,56 @@ async function getPageProps(tagName: string): Promise<PageProps> {
 
     if (props.recordMap) {
       const recordMap = props.recordMap as ExtendedRecordMap
-      const collectionValue = Object.values(recordMap.collection)[0]
-      const collection = (collectionValue as any)?.value || collectionValue
+      const tagsContext = getTagsContext(recordMap)
 
-      if (collection) {
-        const galleryViewValue = Object.values(recordMap.collection_view).find(
-          (view: any) => (view?.value?.type || view?.type) === 'gallery'
+      if (tagsContext?.galleryView) {
+        const galleryBlockEntry = Object.values(recordMap.block).find(
+          (block: any) => {
+            const blockValue = block?.value || block
+            return (
+              blockValue?.type === 'collection_view' &&
+              blockValue.view_ids?.includes(tagsContext.galleryView.id)
+            )
+          }
         )
-        const galleryView = (galleryViewValue as any)?.value || galleryViewValue
+        const galleryBlock = (galleryBlockEntry as any)?.value || galleryBlockEntry
 
-        if (galleryView) {
-          const galleryBlockEntry = Object.values(recordMap.block).find(
-            (block: any) => {
-              const blockValue = block?.value || block
-              return (
-                blockValue?.type === 'collection_view' &&
-                blockValue.view_ids?.includes(galleryView.id)
-              )
+        if (galleryBlock) {
+          const { [galleryBlock.id]: _removed, ...restBlocks } = recordMap.block
+          recordMap.block = {
+            [galleryBlock.id]: galleryBlockEntry as any,
+            ...restBlocks
+          }
+        }
+      }
+
+      if (tagsContext) {
+        const filteredValue = normalizeTitle(tagName)
+        propertyToFilterName =
+          (tagsContext.propertyToFilter?.[1] as any)?.options?.find(
+            (option: any) => normalizeTitle(option.value) === filteredValue
+          )?.value ?? null
+
+        if (tagsContext.queryResults && filteredValue) {
+          tagsContext.queryResults.blockIds = tagsContext.queryResults.blockIds.filter(
+            (id) => {
+              const blockEntry = recordMap.block[id]
+              const block = (blockEntry as any)?.value || blockEntry
+              if (!block?.properties) {
+                return false
+              }
+
+              const value =
+                block.properties[tagsContext.propertyToFilterId]?.[0]?.[0]
+              if (!value) {
+                return false
+              }
+
+              return value
+                .split(',')
+                .some((tag: string) => normalizeTitle(tag) === filteredValue)
             }
           )
-          const galleryBlock =
-            (galleryBlockEntry as any)?.value || galleryBlockEntry
-
-          if (galleryBlock) {
-            const { [galleryBlock.id]: _removed, ...restBlocks } =
-              recordMap.block
-            recordMap.block = {
-              [galleryBlock.id]: galleryBlockEntry as any,
-              ...restBlocks
-            }
-
-            const propertyToFilter = Object.entries(
-              collection.schema as any
-            ).find(
-              (property: any) =>
-                property[1]?.name?.toLowerCase() === tagsPropertyNameLowerCase
-            )
-
-            const propertyToFilterId = propertyToFilter?.[0]
-            const filteredValue = normalizeTitle(tagName)
-            propertyToFilterName =
-              (propertyToFilter?.[1] as any)?.options?.find(
-                (option: any) => normalizeTitle(option.value) === filteredValue
-              )?.value ?? null
-
-            if (propertyToFilterId && filteredValue) {
-              const query =
-                recordMap.collection_query[collection.id]?.[galleryView.id]
-              const queryResults = query?.collection_group_results ?? query
-
-              if (queryResults) {
-                queryResults.blockIds = queryResults.blockIds.filter((id) => {
-                  const blockEntry = recordMap.block[id]
-                  const block = (blockEntry as any)?.value || blockEntry
-                  if (!block || !block.properties) {
-                    return false
-                  }
-
-                  const value = block.properties[propertyToFilterId]?.[0]?.[0]
-                  if (!value) {
-                    return false
-                  }
-
-                  const values = value.split(',')
-                  if (
-                    !values.find(
-                      (value: string) => normalizeTitle(value) === filteredValue
-                    )
-                  ) {
-                    return false
-                  }
-
-                  return true
-                })
-              }
-            }
-          }
         }
       }
     }
@@ -109,10 +81,24 @@ async function getPageProps(tagName: string): Promise<PageProps> {
 }
 
 export async function generateStaticParams() {
-  const siteMap = await getSiteMap()
-  return Object.keys(siteMap.canonicalPageMap).map((pageId) => ({
-    tagName: pageId
-  }))
+  if (!process.env.BLOG_PAGE_ID) {
+    return []
+  }
+
+  try {
+    const props = await resolveNotionPage(process.env.BLOG_PAGE_ID)
+    const recordMap = props.recordMap as ExtendedRecordMap | undefined
+    if (!recordMap) {
+      return []
+    }
+
+    return extractTagNames(recordMap).map((tagName) => ({
+      tagName: normalizeTitle(tagName)
+    }))
+  } catch (error) {
+    console.warn('failed to generate static tag params', error)
+    return []
+  }
 }
 
 export default async function NotionTagsPage({

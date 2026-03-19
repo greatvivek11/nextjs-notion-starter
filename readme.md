@@ -1,22 +1,26 @@
 # Next.js Notion Starter
 
-A modern, high-performance starter kit for building websites with [Next.js](https://nextjs.org/) and using [Notion](https://www.notion.so/) as a headless CMS.
+A Next.js App Router starter for publishing public Notion content as a website with [`react-notion-x`](https://github.com/NotionX/react-notion-x).
 
-This project is a heavily optimized fork of Travis Fischer's [nextjs-notion-starter-kit](https://github.com/transitive-bullshit/nextjs-notion-starter-kit), upgraded for modern web standards.
+This project is a fork of Travis Fischer's [nextjs-notion-starter-kit](https://github.com/transitive-bullshit/nextjs-notion-starter-kit) with an App Router migration and a smaller set of project-specific customizations around rendering, navigation, and Notion file handling.
 
-## Key Features
+## What It Includes
 
-- 🚀 **Framework**: Built with **Next.js 16** and **React 19**.
-- 📂 **Routing**: Fully migrated to **App Router** for improved performance and developer experience.
-- 🤯 **Notion-as-CMS**: Use Notion to manage your content—no database required.
-- ⚡ **Performance**: 
-  - **ISR (Incremental Static Regeneration)** for lightning-fast page loads with dynamic updates.
-  - **Optimized Rendering**: Powered by `react-notion-x` for faithful Notion block reproduction.
-- 📄 **Advanced Features**:
-  - Custom **PDF Rendering** proxy to handle Notion's expiring S3 links.
-  - Built-in **Search** integration with Notion API.
-  - Native **RSS Feed** and **Sitemap** generation.
-  - Integrated **Analytics** and **Speed Insights** via Vercel.
+- Next.js 16 + React 19 with the App Router
+- Public Notion pages rendered through `react-notion-x`
+- ISR-based page generation for the root page, child pages, and tag pages
+- Custom Notion renderer integrations for code highlighting, equations, collections, tweets, and PDFs
+- Search API proxy backed by the Notion search endpoint
+- Generated `sitemap.xml` and `robots.txt`
+- Optional Vercel Analytics and Speed Insights on the homepage
+- A custom `/api/notion-pdf` proxy to re-sign expiring Notion-hosted PDF URLs
+
+## What It Does Not Include
+
+- RSS, Atom, JSON Feed, or ICS feed generation
+- Redis-backed image preview caching in the current configuration
+- A dedicated dependency sync script such as `npm run deps:update`
+- `dotenvx`; local setup uses the standard Next.js `.env` flow
 
 ## Setup & Local Development
 
@@ -37,7 +41,20 @@ This project is a heavily optimized fork of Travis Fischer's [nextjs-notion-star
    ```bash
    cp .env.example .env
    ```
-   *Required*: `ROOT_NOTION_PAGE_ID` (Found in the URL of your public Notion page).
+   Required values:
+   - `ROOT_NOTION_PAGE_ID`
+   - `NAME`
+   - `DOMAIN`
+   - `AUTHOR`
+
+   Common optional values:
+   - `DESCRIPTION`
+   - `ROOT_NOTION_SPACE_ID`
+   - `BLOG_PAGE_ID`
+   - `NAVIGATION_STYLE`
+   - `NAVIGATION_LINKS`
+   - `PAGE_URL_OVERRIDES`
+   - `PAGE_URL_ADDITIONS`
 
 3. **Run Locally**:
    ```bash
@@ -47,13 +64,34 @@ This project is a heavily optimized fork of Travis Fischer's [nextjs-notion-star
 
 ## Configuration
 
-Most of the site's behavior is controlled via `site.config.ts`. You can configure:
-- Site name, domain, and author details.
-- Social links (GitHub, Twitter, LinkedIn, etc.).
-- Navigation style (Default or Custom links).
-- Feature toggles (LQIP images, Redis caching, etc.).
+Most runtime configuration comes from environment variables. [`site.config.ts`](./site.config.ts) is a thin adapter that reads those env vars and passes them into the app's config helpers.
 
-For more details, see the [Configuration Docs](docs/Project_Structure.md).
+The main configuration groups are:
+- Site identity: `NAME`, `DOMAIN`, `AUTHOR`, `DESCRIPTION`
+- Notion root pages: `ROOT_NOTION_PAGE_ID`, `ROOT_NOTION_SPACE_ID`, `BLOG_PAGE_ID`
+- Navigation: `NAVIGATION_STYLE`, `NAVIGATION_LINKS`
+- Custom routes: `PAGE_URL_OVERRIDES`, `PAGE_URL_ADDITIONS`
+- Rendering toggles: `PREVIEW_IMAGE`, `INCLUDE_NOTION_ID_IN_URLS`, `SHOW_COLLECTION_VIEW_DROPDOWN`
+
+JSON-backed env vars should contain valid JSON:
+
+```json
+{
+  "PAGE_URL_OVERRIDES": {
+    "/about": "0123456789abcdef0123456789abcdef"
+  },
+  "NAVIGATION_LINKS": [
+    { "title": "Home", "pageId": "0123456789abcdef0123456789abcdef" },
+    { "title": "GitHub", "url": "https://github.com/your-name" }
+  ]
+}
+```
+
+More details are in:
+- [Notion setup](./docs/Notion.md)
+- [System architecture](./docs/System_Architecture.md)
+- [Project structure](./docs/Project_Structure.md)
+- [Blueprint / onboarding notes](./docs/Blueprint.md)
 
 ## Deployment
 
@@ -63,17 +101,9 @@ The easiest way to deploy is using [Vercel](https://vercel.com/):
 2. Connect your repo to Vercel.
 3. Add your Environment Variables in the Vercel dashboard.
 
-### Optimizing Vercel Deployments (CI Scoping)
-By default, Vercel triggers a build for every push. To avoid unnecessary builds when only documentation (like this README) or config files change, you can scope your build.
+### Cron behavior
 
-**In Vercel Dashboard**:
-Settings > Git > **Ignored Build Step**
-
-Paste the following command:
-```bash
-git diff --quiet HEAD^ HEAD src/ public/ package.json next.config.js tsconfig.json site.config.ts biome.json
-```
-This tells Vercel to only proceed with the build if there are changes in the source code, public assets, or core configuration files.
+[`vercel.json`](./vercel.json) schedules `/api/cron` daily. That route checks `CRON_SECRET` and then POSTs to `CRON_URL`, which is intended for an external redeploy or revalidation webhook.
 
 ## Credits & Documentation
 
