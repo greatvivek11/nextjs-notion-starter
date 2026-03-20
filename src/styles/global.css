@@ -1,40 +1,233 @@
-* {
-  box-sizing: border-box;
+@import "tailwindcss";
+
+@theme {
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --radius: 0.75rem;
+  }
+
+  .dark-mode {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
 }
 
-body,
-html {
-  padding: 0;
-  margin: 0;
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+  }
 }
 
-body {
-  --notion-font: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans',
-    'Droid Sans', 'Helvetica Neue', 'Noto Sans', sans-serif;
-  font-family: var(--notion-font);
-  overflow-x: hidden;
+/* Glassmorphism utility */
+.glass {
+  @apply bg-white/80 backdrop-blur-md border border-slate-200/50 shadow-sm;
 }
 
-.static-tweet blockquote {
-  margin: 0;
-  margin-block-start: 0;
-  margin-block-end: 0;
-  margin-inline-start: 0;
-  margin-inline-end: 0;
+.dark-mode .glass {
+  @apply bg-slate-900/80 backdrop-blur-md border border-slate-700/50 shadow-none;
 }
 
-.static-tweet-emoji {
-  height: 1.2em !important;
-  width: 1.2em !important;
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
 }
 
-.searchInput {
-  color: var(--fg-color);
-  caret-color: var(--fg-color);
+::-webkit-scrollbar-track {
+  @apply bg-background;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-muted rounded-full border-4 border-solid border-background;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-muted-foreground/50;
+}
+
+/* Notion Content Refinements */
+.notion {
+  font-family: inherit !important;
+}
+
+.notion-title {
+  @apply text-4xl md:text-5xl font-bold tracking-tight mb-8;
+}
+
+.notion-h1, .notion-h2, .notion-h3 {
+  @apply font-semibold tracking-tight mt-12 mb-4;
+}
+
+.notion-h1 { @apply text-3xl; }
+.notion-h2 { @apply text-2xl; }
+.notion-h3 { @apply text-xl; }
+
+.notion-hr {
+  @apply my-12 border-muted;
+}
+
+.notion-blockquote {
+  @apply border-l-4 border-primary/50 pl-6 my-8 italic text-lg text-muted-foreground bg-muted/20 py-4 pr-4 rounded-r-xl;
+}
+
+.notion-callout {
+  @apply rounded-2xl border border-border/50 bg-muted/30 p-6 my-8;
+}
+
+/* Shiki Code Block Integration */
+.shiki-container {
+  @apply rounded-2xl border border-border/50 overflow-hidden my-8 shadow-xl shadow-black/5;
+}
+
+.shiki-container pre {
+  @apply m-0! p-6! text-[15px]! leading-relaxed!;
+}
+
+/* Image Polish */
+.notion-image-inset, .notion-asset-wrapper {
+  @apply rounded-2xl overflow-hidden my-8 border border-border/20 shadow-md;
+}
+
+/* Image Loading Skeleton */
+@keyframes shimmer-img {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+img.notion-image,
+.notion-page-cover,
+.notion-collection-card-cover img,
+img.notion-page-icon,
+.notion-asset-wrapper-image img,
+.notion-image-inset img {
+  @apply bg-muted/30 text-transparent;
+  background-image: linear-gradient(
+    90deg,
+    rgba(150, 150, 150, 0.05) 0%,
+    rgba(150, 150, 150, 0.15) 50%,
+    rgba(150, 150, 150, 0.05) 100%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-img 1.5s infinite linear;
+}
+
+.dark-mode img.notion-image,
+.dark-mode .notion-page-cover,
+.dark-mode .notion-collection-card-cover img,
+.dark-mode img.notion-page-icon,
+.dark-mode .notion-asset-wrapper-image img,
+.dark-mode .notion-image-inset img {
+  @apply bg-muted/10;
+  background-image: linear-gradient(
+    90deg,
+    rgba(200, 200, 200, 0.03) 0%,
+    rgba(200, 200, 200, 0.08) 50%,
+    rgba(200, 200, 200, 0.03) 100%
+  );
+}
+
+/* List spacing */
+.notion-list {
+  @apply my-6 space-y-2;
+}
+
+/* Tag Page Adjustments */
+.notion-collection-header {
+  display: none !important;
+}
+
+.notion-collection-row {
+  @apply border-b border-border/50 last:border-0 py-6 hover:bg-muted/30 transition-colors rounded-xl px-4;
+}
+
+/* Circular Page Icon */
+.notion-page-icon-hero.notion-page-icon-image,
+.notion-page-icon-hero.notion-page-icon-image .notion-page-icon {
+  border-radius: 50% !important;
+  overflow: hidden;
+}
+
+/* Hide Next.js Dev Overlay / "N" Logo */
+nextjs-portal, .nextjs-toast {
+  display: none !important;
 }

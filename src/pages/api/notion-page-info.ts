@@ -12,7 +12,7 @@ import {
 import * as libConfig from '@/lib/config'
 import { mapImageUrl } from '@/lib/map-image-url'
 import { notion } from '@/lib/notion-api'
-import type { NotionPageInfo } from '@/lib/types'
+import type { NotionPageInfo } from '@/types'
 
 export default async function handler(
   req: NextApiRequest,

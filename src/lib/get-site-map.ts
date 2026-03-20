@@ -1,19 +1,20 @@
 import { getAllPagesInSpace, getPageProperty } from 'notion-utils'
 // import pMemoize from 'p-memoize'
-import { rootNotionPageId, rootNotionSpaceId, site } from './config'
-
-import { includeNotionIdInUrls } from './config'
+import { appConfig } from './config'
 import { getCanonicalPageId } from './get-canonical-page-id'
-import { notion } from './notion-api'
+import { getPage as getPageRobust } from './notion'
 import * as types from './types'
 
-const uuid = !!includeNotionIdInUrls
+const uuid = !!appConfig.includeNotionIdInUrls
 
 export async function getSiteMap(): Promise<types.SiteMap> {
-  const partialSiteMap = await getAllPages(rootNotionPageId, rootNotionSpaceId)
+  const partialSiteMap = await getAllPages(
+    appConfig.rootNotionPageId,
+    appConfig.rootNotionSpaceId
+  )
 
   return {
-    site: site,
+    site: appConfig.site,
     ...partialSiteMap
   } as types.SiteMap
 }
@@ -39,8 +40,7 @@ async function getAllPagesImpl(
   rootNotionSpaceId: string
 ): Promise<Partial<types.SiteMap>> {
   const getPage = async (pageId: string, ...args) => {
-    // console.log('\nnotion getPage', uuidToId(pageId))
-    return notion.getPage(pageId, { signFileUrls: false, ...args[0] })
+    return getPageRobust(pageId)
   }
 
   const pageMap = await getAllPagesInSpace(

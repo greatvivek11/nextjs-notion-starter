@@ -1,26 +1,31 @@
 import { NotionPage } from '@/components/NotionPage'
-import { domain } from '@/lib/config'
+import { appConfig } from '@/lib/config'
+import { buildPageMetadata } from '@/lib/metadata-builder'
+import { resolvePageModel } from '@/lib/page-model'
 import { resolveNotionPage } from '@/lib/resolve-notion-page'
 import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/next'
+
 export const revalidate = 60
 
-async function getNotionPages() {
+export async function generateMetadata() {
   try {
-    return await resolveNotionPage()
+    const resolvedPage = await resolveNotionPage()
+    const pageModel = resolvePageModel(resolvedPage)
+    return buildPageMetadata(pageModel, appConfig)
   } catch (err) {
-    console.error('page error', domain, err)
-    throw err
+    return {}
   }
 }
 
 export default async function Page() {
-  const props = await getNotionPages()
+  const resolvedPage = await resolveNotionPage()
+
   return (
     <>
       <SpeedInsights />
       <Analytics />
-      <NotionPage {...props} />
+      <NotionPage {...resolvedPage} />
     </>
   )
 }

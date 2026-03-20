@@ -15,10 +15,12 @@ import {
   Site
 } from './types'
 
+import { AppConfig } from '@/types'
+
 // Required Notion Page ID
 export const rootNotionPageId: string = parsePageId(
   getSiteConfig('rootNotionPageId'),
-  { uuid: false }
+  { uuid: true }
 )
 
 if (!rootNotionPageId) {
@@ -138,6 +140,38 @@ export const site: Site = {
   rootNotionPageId,
   rootNotionSpaceId,
   description
+}
+
+export const appConfig: AppConfig = {
+  rootNotionPageId,
+  domain,
+  name,
+  site,
+  pageUrlOverrides,
+  pageUrlAdditions,
+  rootNotionSpaceId,
+  description,
+  language,
+  author,
+  twitter,
+  github,
+  youtube,
+  linkedin,
+  newsletter,
+  defaultPageIcon,
+  defaultPageCover,
+  defaultPageCoverPosition,
+  isDev,
+  isServer,
+  isPreviewImageSupportEnabled,
+  includeNotionIdInUrls,
+  showCollectionViewDropdown,
+  isSearchEnabled,
+  navigationStyle,
+  navigationLinks: navigationLinks as any, // Cast for now, will refine types
+  host,
+  apiHost,
+  apiBaseUrl
 }
 
 function cleanPageUrlMap(

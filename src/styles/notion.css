@@ -19,7 +19,7 @@
 }
 
 .notion-page {
-  padding-bottom: calc(max(5vh, 32px)) !important;
+  padding-bottom: 0 !important;
   line-height: 1.65;
 }
 

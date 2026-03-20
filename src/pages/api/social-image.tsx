@@ -1,5 +1,5 @@
 import { api, apiHost, rootNotionPageId } from '@/lib/config'
-import type { NotionPageInfo } from '@/lib/types'
+import { NotionPageInfo, Params } from '@/types'
 import { ImageResponse } from '@vercel/og'
 import type { NextRequest } from 'next/server'
 

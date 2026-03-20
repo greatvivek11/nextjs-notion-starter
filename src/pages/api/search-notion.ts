@@ -1,5 +1,5 @@
 import { search } from '@/lib/notion'
-import type * as types from '@/lib/types'
+import type * as types from '@/types'
 import type { NextApiRequest, NextApiResponse } from 'next'
 
 export default async function handler(

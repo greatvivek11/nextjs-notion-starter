@@ -3,10 +3,10 @@ import * as React from 'react'
 
 import * as config from '@/lib/config'
 import { getSocialImageUrl } from '@/lib/get-social-image-url'
-import * as types from '@/lib/types'
+import { PageProps, Site } from '@/types'
 
 export const PageHead: React.FC<
-  types.PageProps & {
+  PageProps & {
     title?: string
     description?: string
     image?: string

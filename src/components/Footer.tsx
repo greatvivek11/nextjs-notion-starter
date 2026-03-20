@@ -1,125 +1,114 @@
-import {
-  author,
-  github,
-  linkedin,
-  newsletter,
-  twitter,
-  youtube
-} from '@/lib/config'
+'use client'
+
+import { appConfig } from '@/lib/config'
 import { useDarkMode } from '@/lib/use-dark-mode'
-import { FaEnvelopeOpenText } from '@react-icons/all-files/fa/FaEnvelopeOpenText'
-import { FaGithub } from '@react-icons/all-files/fa/FaGithub'
-import { FaLinkedin } from '@react-icons/all-files/fa/FaLinkedin'
-import { FaTwitter } from '@react-icons/all-files/fa/FaTwitter'
-import { FaYoutube } from '@react-icons/all-files/fa/FaYoutube'
-import { IoMoonSharp } from '@react-icons/all-files/io5/IoMoonSharp'
-import { IoSunnyOutline } from '@react-icons/all-files/io5/IoSunnyOutline'
-import Link from 'next/link'
+import {
+  Github,
+  Linkedin,
+  Mail,
+  Moon,
+  Sun,
+  Twitter,
+  Youtube
+} from 'lucide-react'
 import * as React from 'react'
-import styles from './styles.module.css'
 
-// TODO: merge the data and icons from PageSocial with the social links in Footer
-
-export const FooterImpl: React.FC = () => {
+export const Footer = () => {
   const [hasMounted, setHasMounted] = React.useState(false)
   const { isDarkMode, toggleDarkMode } = useDarkMode()
   const currentYear = new Date().getFullYear()
-
-  const onToggleDarkMode = React.useCallback(
-    (e) => {
-      e.preventDefault()
-      toggleDarkMode()
-    },
-    [toggleDarkMode]
-  )
 
   React.useEffect(() => {
     setHasMounted(true)
   }, [])
 
   return (
-    <footer className={styles.footer}>
-      <div className={styles.copyright}>
-        Copyright {currentYear} {author}
+    <footer className='w-full max-w-5xl mx-auto px-4 py-2 flex items-center justify-between text-foreground font-medium mt-2 mb-4 border-t border-border/30'>
+      {/* Left: Copyright */}
+      <div className='flex-1 text-sm font-medium'>
+        Copyright {currentYear} {appConfig.author}
       </div>
 
-      <div className={styles.settings}>
+      {/* Center: Settings / Dark Mode Toggle */}
+      <div className='flex-1 flex justify-center'>
         {hasMounted && (
-          <Link
-            className={styles.toggleDarkMode}
-            href='#'
-            role='button'
-            onClick={onToggleDarkMode}
+          <button
+            onClick={toggleDarkMode}
+            className='p-2 rounded-md hover:bg-muted transition-colors hover:text-foreground'
             title='Toggle dark mode'
+            aria-label='Toggle dark mode'
           >
-            {isDarkMode ? <IoMoonSharp /> : <IoSunnyOutline />}
-          </Link>
+            {isDarkMode ? (
+              <Moon className='w-5 h-5' />
+            ) : (
+              <Sun className='w-5 h-5' />
+            )}
+          </button>
         )}
       </div>
 
-      <div className={styles.social}>
-        {twitter && (
+      {/* Right: Social Icons */}
+      <div className='flex-1 flex justify-end gap-4'>
+        {appConfig.twitter && (
           <a
-            className={styles.twitter}
-            href={`https://twitter.com/${twitter}`}
-            title={`Twitter @${twitter}`}
+            className='hover:text-foreground transition-colors'
+            href={`https://twitter.com/${appConfig.twitter}`}
+            title={`Twitter @${appConfig.twitter}`}
             target='_blank'
             rel='noopener noreferrer'
           >
-            <FaTwitter />
+            <Twitter className='w-5 h-5' />
           </a>
         )}
 
-        {github && (
+        {appConfig.github && (
           <a
-            className={styles.github}
-            href={`https://github.com/${github}`}
-            title={`GitHub @${github}`}
+            className='hover:text-foreground transition-colors'
+            href={`https://github.com/${appConfig.github}`}
+            title={`GitHub @${appConfig.github}`}
             target='_blank'
             rel='noopener noreferrer'
           >
-            <FaGithub />
+            <Github className='w-5 h-5' />
           </a>
         )}
 
-        {linkedin && (
+        {appConfig.linkedin && (
           <a
-            className={styles.linkedin}
-            href={`https://www.linkedin.com/in/${linkedin}`}
-            title={`LinkedIn ${author}`}
+            className='hover:text-foreground transition-colors'
+            href={`https://www.linkedin.com/in/${appConfig.linkedin}`}
+            title={`LinkedIn ${appConfig.author}`}
             target='_blank'
             rel='noopener noreferrer'
           >
-            <FaLinkedin />
+            <Linkedin className='w-5 h-5' />
           </a>
         )}
 
-        {newsletter && (
+        {appConfig.newsletter && (
           <a
-            className={styles.newsletter}
-            href={`${newsletter}`}
-            title={`Newsletter ${author}`}
+            className='hover:text-foreground transition-colors'
+            href={`${appConfig.newsletter}`}
+            title={`Newsletter ${appConfig.author}`}
             target='_blank'
             rel='noopener noreferrer'
           >
-            <FaEnvelopeOpenText />
+            <Mail className='w-5 h-5' />
           </a>
         )}
 
-        {youtube && (
+        {appConfig.youtube && (
           <a
-            className={styles.youtube}
-            href={`https://www.youtube.com/${youtube}`}
-            title={`YouTube ${author}`}
+            className='hover:text-foreground transition-colors'
+            href={`https://www.youtube.com/${appConfig.youtube}`}
+            title={`YouTube ${appConfig.author}`}
             target='_blank'
             rel='noopener noreferrer'
           >
-            <FaYoutube />
+            <Youtube className='w-5 h-5' />
           </a>
         )}
       </div>
     </footer>
   )
 }
-
-export const Footer = React.memo(FooterImpl)

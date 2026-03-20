@@ -13,34 +13,36 @@ import 'react-notion-x/src/styles.css'
 import '@/styles/notion.css'
 // global style overrides for prism theme (optional)
 
+import { appConfig } from '@/lib/config'
+
 export const metadata: Metadata = {
-  metadataBase: new URL(`https://${process.env.DOMAIN}`),
+  metadataBase: new URL(appConfig.host),
   alternates: {
     canonical: '/',
     languages: {
       'en-US': '/en-US'
     }
   },
-  title: process.env.TITLE,
-  description: process.env.DESCRIPTION,
+  title: appConfig.name,
+  description: appConfig.description,
   icons: {
     icon: '/favicon.png',
     shortcut: '/favicon.png'
   },
-  applicationName: 'Next.js Notion Starter Kit',
-  creator: process.env.AUTHOR,
+  applicationName: appConfig.name,
+  creator: appConfig.author,
   manifest: '/manifest.json',
   generator: 'Next.js',
   openGraph: {
-    title: process.env.TITLE,
-    description: process.env.DESCRIPTION,
-    url: `https://${process.env.DOMAIN}`,
-    siteName: 'Next.js Notion Starter Kit',
+    title: appConfig.name,
+    description: appConfig.description,
+    url: appConfig.host,
+    siteName: appConfig.name,
     images: ['/favicon-192x192.png'],
     locale: 'en-US',
     type: 'website'
   },
-  authors: [{ name: process.env.AUTHOR, url: `https://${process.env.DOMAIN}` }]
+  authors: [{ name: appConfig.author, url: appConfig.host }]
 }
 
 export default function RootLayout({

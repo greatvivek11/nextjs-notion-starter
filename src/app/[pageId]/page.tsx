@@ -1,19 +1,24 @@
 import { NotionPage } from '@/components/NotionPage'
-import { domain } from '@/lib/config'
+import { appConfig } from '@/lib/config'
 import { getSiteMap } from '@/lib/get-site-map'
+import { buildPageMetadata } from '@/lib/metadata-builder'
+import { resolvePageModel } from '@/lib/page-model'
 import { resolveNotionPage } from '@/lib/resolve-notion-page'
-import type { PageProps } from '@/lib/types'
-
-// This is needed to generate pages at runtime dynamically using ISR.
 
 export const revalidate = 60
 
-async function getPageProps(pageId: string): Promise<PageProps> {
+export async function generateMetadata({
+  params
+}: {
+  params: Promise<{ pageId: string }>
+}) {
   try {
-    return await resolveNotionPage(pageId)
+    const { pageId } = await params
+    const resolvedPage = await resolveNotionPage(pageId)
+    const pageModel = resolvePageModel(resolvedPage)
+    return buildPageMetadata(pageModel, appConfig)
   } catch (err) {
-    console.error('page error', domain, pageId, err)
-    throw err
+    return {}
   }
 }
 
@@ -26,8 +31,10 @@ export async function generateStaticParams() {
 
 export default async function NotionDomainDynamicPage({
   params
-}: { params: Promise<{ pageId: string }> }) {
+}: {
+  params: Promise<{ pageId: string }>
+}) {
   const { pageId } = await params
-  const props = await getPageProps(pageId)
-  return <NotionPage {...props} />
+  const resolvedPage = await resolveNotionPage(pageId)
+  return <NotionPage {...resolvedPage} />
 }

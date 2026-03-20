@@ -31,6 +31,10 @@ module.exports = withBundleAnalyzer({
     workerThreads: false,
     cpus: 2
   },
+  devIndicators: {
+    appIsrStatus: false,
+    buildActivity: false
+  },
   staticPageGenerationTimeout: 300,
   images: {
     remotePatterns: [

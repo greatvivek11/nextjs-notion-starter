@@ -23,9 +23,9 @@ export default siteConfig({
   rootNotionSpaceId: process.env.ROOT_NOTION_SPACE_ID,
 
   // basic site info (required)
-  name: process.env.NAME,
-  domain: process.env.DOMAIN,
-  author: process.env.AUTHOR,
+  name: process.env.NAME || process.env.TITLE || 'Vivek Kaushik',
+  domain: process.env.DOMAIN || 'vivekkaushik.in',
+  author: process.env.AUTHOR || 'Vivek Kaushik',
 
   // open graph metadata (optional)
   description: process.env.DESCRIPTION,
