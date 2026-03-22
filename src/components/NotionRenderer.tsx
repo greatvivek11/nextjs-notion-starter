@@ -35,9 +35,19 @@ const ShikiCode = dynamic(
   }
 )
 
+const Mermaid = dynamic(
+  () => import('./Mermaid').then((m) => m.Mermaid),
+  { ssr: false }
+)
+
 const Code = ({ block, className }: any) => {
   const code = block.properties?.title?.[0]?.[0] || ''
   const language = block.properties?.language?.[0]?.[0] || 'javascript'
+  
+  if (language.toLowerCase() === 'mermaid') {
+    return <Mermaid chart={code} />
+  }
+
   return <ShikiCode code={code} language={language} className={className} />
 }
 
