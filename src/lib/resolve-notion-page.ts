@@ -28,13 +28,13 @@ export async function resolveNotionPage(
     }
 
     if (pageId) {
-      recordMap = await getPage(pageId)
+      recordMap = await getPage(pageId, 'resolveNotionPage')
     } else {
       const siteMap = await getSiteMap()
       pageId = siteMap?.canonicalPageMap[rawPageId]
 
       if (pageId) {
-        recordMap = await getPage(pageId)
+        recordMap = await getPage(pageId, 'resolveNotionPage:canonical')
       } else {
         return {
           site,
@@ -49,7 +49,7 @@ export async function resolveNotionPage(
     }
   } else {
     pageId = site.rootNotionPageId
-    recordMap = await getPage(pageId)
+    recordMap = await getPage(pageId, 'resolveNotionPage:root')
   }
 
   const props: ResolvedPage = { site, recordMap, pageId }

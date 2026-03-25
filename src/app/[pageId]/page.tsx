@@ -23,10 +23,9 @@ export async function generateMetadata({
 }
 
 export async function generateStaticParams() {
-  const siteMap = await getSiteMap()
-  return Object.keys(siteMap.canonicalPageMap).map((pageId) => ({
-    pageId
-  }))
+  // We return an empty array to make all pages ISR (Incremental Static Regeneration).
+  // This prevents the expensive SiteMap crawl and 600+ page fetches during the build phase.
+  return []
 }
 
 export default async function NotionDomainDynamicPage({

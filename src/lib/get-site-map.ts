@@ -1,8 +1,8 @@
 import { getAllPagesInSpace, getPageProperty } from 'notion-utils'
-// import pMemoize from 'p-memoize'
 import { appConfig } from './config'
 import { getCanonicalPageId } from './get-canonical-page-id'
 import { getPage as getPageRobust } from './notion'
+import { notionCache } from './notion-cache'
 import * as types from './types'
 
 const uuid = !!appConfig.includeNotionIdInUrls
@@ -19,19 +19,26 @@ export async function getSiteMap(): Promise<types.SiteMap> {
   } as types.SiteMap
 }
 
-const cache = new Map<string, Partial<types.SiteMap>>()
-
 const getAllPages = async (
   rootNotionPageId: string,
   rootNotionSpaceId: string
 ): Promise<Partial<types.SiteMap>> => {
   const cacheKey = JSON.stringify({ rootNotionPageId, rootNotionSpaceId })
-  if (cache.has(cacheKey)) {
-    return cache.get(cacheKey)!
+  
+  // 1. Check modular cache (Memory + Disk)
+  const cached = await notionCache.getSitemap(cacheKey)
+  if (cached) {
+    console.log(`[Notion Sitemap] Cache HIT (Modular)`)
+    return cached
   }
 
+  console.log(`[Notion Sitemap] Cache MISS. Fetching full space map from API...`)
   const result = await getAllPagesImpl(rootNotionPageId, rootNotionSpaceId)
-  cache.set(cacheKey, result)
+
+  // 2. Save to modular cache
+  await notionCache.setSitemap(cacheKey, result)
+  console.log(`[Notion Sitemap] Successfully saved to modular cache.`)
+
   return result
 }
 
@@ -39,8 +46,8 @@ async function getAllPagesImpl(
   rootNotionPageId: string,
   rootNotionSpaceId: string
 ): Promise<Partial<types.SiteMap>> {
-  const getPage = async (pageId: string, ...args) => {
-    return getPageRobust(pageId)
+  const getPage = async (pageId: string) => {
+    return getPageRobust(pageId, 'SiteMap')
   }
 
   const pageMap = await getAllPagesInSpace(

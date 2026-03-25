@@ -30,7 +30,8 @@ async function getHighlighter() {
         'yaml',
         'markdown',
         'html',
-        'css'
+        'css',
+        'text'
       ]
     })
   })()
@@ -62,6 +63,8 @@ export const ShikiCode: React.FC<{
         let lang = language.toLowerCase()
         if (lang === 'c#') lang = 'csharp'
         if (lang === 'c++') lang = 'cpp'
+        if (lang === 'plain text') lang = 'text'
+        if (lang === 'plaintext') lang = 'text'
 
         const output = highlighter.codeToHtml(code, {
           lang,

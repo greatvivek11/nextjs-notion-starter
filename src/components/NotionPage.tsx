@@ -1,4 +1,5 @@
 'use client'
+import dynamic from 'next/dynamic'
 import { useSearchParams } from 'next/navigation'
 import React from 'react'
 
@@ -15,6 +16,11 @@ import { PageHead } from './PageHead'
 
 import { resolvePageModel } from '@/lib/page-model'
 import { NotionRenderer } from './NotionRenderer'
+
+const ArticleAudioPlayer = dynamic(
+  () => import('./ArticleAudioPlayer').then((m) => m.ArticleAudioPlayer),
+  { ssr: false }
+)
 
 export const NotionPage: React.FC<types.PageProps> = (props) => {
   const { site, recordMap, error, pageId, tagsPage, propertyToFilterName } =
@@ -114,6 +120,7 @@ export const NotionPage: React.FC<types.PageProps> = (props) => {
           showTableOfContents={page.showTableOfContents}
           minTableOfContentsItems={page.minTableOfContentsItems}
         />
+        {page.isBlogPost && !page.tagsPage && pageId && <ArticleAudioPlayer pageId={pageId} />}
       </main>
 
       {!isLiteMode && <Footer />}

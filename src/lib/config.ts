@@ -114,6 +114,12 @@ export const navigationLinks: Array<NavigationLink | null> = getSiteConfig(
 // Optional whether or not to enable search
 export const isSearchEnabled: boolean = getSiteConfig('isSearchEnabled', true)
 
+// --- Notion API Optimization Constants ---
+export const notionMaxConcurrency = 3
+export const notionRetryDelay = 20000 // 20s as requested by user
+export const notionCacheTTL = 10 * 60 * 1000 // 10 minutes (in-memory)
+export const notionCacheDir = '.notion-cache'
+
 // ----------------------------------------------------------------------------
 
 export const isServer = typeof window === 'undefined'

@@ -22,7 +22,7 @@ export const oembed = async ({
 
   // TODO: handle errors gracefully
 
-  const page = await getPage(pageId)
+  const page = await getPage(pageId, 'oEmbed')
   const pageTitle = getPageTitle(page)
   if (pageTitle) title = pageTitle
 

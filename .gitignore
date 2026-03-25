@@ -36,6 +36,10 @@ yarn-error.log*
 # vercel
 .vercel
 tsconfig.tsbuildinfo
+.kokoro/
 
 #husky
 .husky
+
+.notion-cache
+./notion-cache

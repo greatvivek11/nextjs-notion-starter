@@ -1,7 +1,7 @@
 'use client'
 
-import * as React from 'react'
 import { useDarkMode } from '@/lib/use-dark-mode'
+import * as React from 'react'
 
 // -----------------------------------------------------------------------------
 // Mermaid Renderer Component
@@ -20,7 +20,7 @@ export const Mermaid: React.FC<{
     async function render() {
       try {
         const { default: mermaid } = await import('mermaid')
-        
+
         mermaid.initialize({
           startOnLoad: false,
           theme: isDarkMode ? 'dark' : 'default',
@@ -52,13 +52,16 @@ export const Mermaid: React.FC<{
 
   if (error) {
     return (
-      <pre className='mermaid-error' style={{ 
-        color: '#E03131', 
-        padding: '1rem', 
-        background: 'rgba(235, 87, 87, 0.1)',
-        borderRadius: '4px',
-        fontSize: '0.875rem'
-      }}>
+      <pre
+        className='mermaid-error'
+        style={{
+          color: '#E03131',
+          padding: '1rem',
+          background: 'rgba(235, 87, 87, 0.1)',
+          borderRadius: '4px',
+          fontSize: '0.875rem'
+        }}
+      >
         <code>{error}</code>
         <br />
         <br />
@@ -69,12 +72,15 @@ export const Mermaid: React.FC<{
 
   if (!svg) {
     return (
-      <div className='mermaid-loading' style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
-        padding: '2rem',
-        opacity: 0.5
-      }}>
+      <div
+        className='mermaid-loading'
+        style={{
+          display: 'flex',
+          justifyContent: 'center',
+          padding: '2rem',
+          opacity: 0.5
+        }}
+      >
         Loading diagram...
       </div>
     )
@@ -83,9 +89,9 @@ export const Mermaid: React.FC<{
   return (
     <div
       className='mermaid-container'
-      style={{ 
-        display: 'flex', 
-        justifyContent: 'center', 
+      style={{
+        display: 'flex',
+        justifyContent: 'center',
         margin: '2rem 0',
         width: '100%',
         overflowX: 'auto'

@@ -6,6 +6,13 @@ This project is a fork of Travis Fischer's [nextjs-notion-starter-kit](https://g
 
 ## What It Includes
 
+- `LOCAL_TTS_BACKEND`: Set to `mlx-audio` to use the high-performance MLX/Kokoro generator (requires Mac w/ Silicon).
+- `KOKORO_VOICE`: The voice ID to use (default: `af_heart`).
+- `KOKORO_WHISPERX_DEVICE`: Hardware acceleration for alignment (`mps` or `cpu`).
+- `KOKORO_SPEED`: Playback speed for synthesis (e.g., `1.0`).
+
+> [!IMPORTANT]
+> Local audio synthesis requires a setup step that creates a workspace in `~/.notion-audio-kokoro`.
 - Next.js 16 + React 19 with the App Router
 - Public Notion pages rendered through `react-notion-x`
 - ISR-based page generation for the root page, child pages, and tag pages
@@ -61,6 +68,38 @@ This project is a fork of Travis Fischer's [nextjs-notion-starter-kit](https://g
    npm run dev
    ```
    Open [http://localhost:3000](http://localhost:3000) to see your site.
+
+### Article Audio
+
+To enable local development article read-aloud generation:
+
+- Create a public Vercel Blob store for generated audio assets
+- Ensure `BLOB_READ_WRITE_TOKEN` is available in your project env
+- Set `AUDIO_STORAGE_PROVIDER=vercel-blob`
+- Make sure Homebrew is available on your Mac; the setup script installs `python@3.12`, `espeak-ng`, and `ffmpeg`
+
+**Recommended (Apple Silicon):** MLX-Audio backend
+
+```bash
+npm run audio:setup-mlx
+### Local Audio Generation (Optional)
+
+The starter now supports high-performance local audio generation with word-level synchronization using **MLX-Audio** and **Kokoro**. 
+
+> [!NOTE]
+> All local audio models and caches are stored in `~/.notion-audio-kokoro` to keep your project root clean and avoid build errors with virtual environment symlinks.
+
+1.  **Requirement**: Apple Silicon Mac (M1/M2/M3).
+2.  **Setup**:
+    ```bash
+    npm run audio:setup-mlx
+    ```
+3.  **Run**:
+    -   In Development: Click "Listen" in the floating audio player.
+    -   CLI: `npm run audio:generate -- <pageId>`
+.
+
+Generated audio is cached per article content hash in Blob. In production and preview, the player only appears for articles that already have cached audio.
 
 ## Configuration
 
