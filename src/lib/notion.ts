@@ -1,152 +1,103 @@
 'use server'
 import { ExtendedRecordMap, SearchParams, SearchResults } from 'notion-types'
 import { mergeRecordMaps, parsePageId } from 'notion-utils'
-import {
-  navigationLinks,
-  navigationStyle,
-  notionRetryDelay
-} from './config'
 import { notion } from './notion-api'
 import { notionCache } from './notion-cache'
-import { notionRateLimiter } from './notion-rate-limiter'
+import { withRetry } from './notion-retry'
+import { applyFormatPropertyFilters } from './notion-filters'
+import { fetchLinkedCollections } from './notion-collections'
+import { getNavigationLinkPages } from './notion-navigation'
+import { navigationStyle } from './config'
+
+// ---------------------------------------------------------------------------
+// Request Deduplication
+// Prevents redundant parallel API calls for the same page (cache-stampede guard).
+// ---------------------------------------------------------------------------
+const pendingPages = new Map<string, Promise<ExtendedRecordMap>>()
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
 
 /**
- * Robust wrapper for Notion API calls with automated retries, 
- * concurrency limiting, and Retry-After header support.
+ * Main entry point for fetching a Notion page.
+ *
+ * Flow:
+ * 1. FS cache hit → apply filters → return
+ * 2. In-flight deduplication → join pending promise
+ * 3. Fresh fetch → linked collection enrichment → cache → nav merge → filters → return
  */
-const withRetry = async <T>(
-  fn: () => Promise<T>,
-  retries = 8,
-  delay = 1000
-): Promise<T> => {
-  for (let i = 0; i < retries; i++) {
-    try {
-      return await notionRateLimiter.execute(fn)
-    } catch (err: any) {
-      if (i === retries - 1) throw err
+export async function getPage(pageId: string, source = 'unknown'): Promise<ExtendedRecordMap> {
+  // Cache check
+  let recordMap = await notionCache.getPage(pageId)
 
-      const is429 =
-        err.message?.includes('429') ||
-        err.status === 429 ||
-        err.statusCode === 429
-      
-      let currentDelay = delay
-      if (is429) {
-        // Respect Retry-After header, or fallback to config delay
-        const retryAfter = err.response?.headers?.get('Retry-After') || err.headers?.['retry-after']
-        const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : 0
-        
-        if (retryAfterSeconds > 0) {
-          currentDelay = retryAfterSeconds * 1000
-          console.warn(`[Notion API] Respecting Retry-After: ${retryAfterSeconds}s`)
-        } else {
-          currentDelay = notionRetryDelay
-          console.warn(`[Notion API] 429 detected. Delaying ${currentDelay}ms.`)
+  if (recordMap) {
+    const collections = Object.keys(recordMap.collection || {}).length
+    const views = Object.keys(recordMap.collection_view || {}).length
+
+    if (collections > 0 && views === 0) {
+      // Thin cache (missing view data) — force re-fetch
+      console.log(`[Notion Cache] Page: ${pageId} has collections but 0 views. Re-fetching.`)
+      recordMap = null as any
+    } else {
+      console.log(`[Notion FS HIT] Page: ${pageId}. Collections: ${collections}, Views: ${views}`)
+      applyFormatPropertyFilters(recordMap)
+      return recordMap
+    }
+  }
+
+  // Deduplication: join an in-flight request if one exists
+  const pending = pendingPages.get(pageId)
+  if (pending) {
+    console.log(`[Notion] Joining pending request for page: ${pageId}`)
+    return pending
+  }
+
+  const fetchPromise = (async () => {
+    try {
+      console.log(`[Notion] Cache MISS for page: ${pageId} (source: ${source}). Fetching...`)
+      recordMap = await withRetry(() =>
+        notion.getPage(pageId, {
+          signFileUrls: false,
+          fetchCollections: true,
+          fetchMissingBlocks: true,
+          concurrency: 1
+        })
+      )
+
+      const collections = Object.keys(recordMap.collection || {}).length
+      const views = Object.keys(recordMap.collection_view || {}).length
+      console.log(`[Notion Fetch] Page: ${pageId}. Collections: ${collections}, Views: ${views}`)
+
+      // Enrich with linked collection data (scoped to views embedded on this page)
+      recordMap = await fetchLinkedCollections(recordMap, pageId)
+
+      // Persist to cache (unfiltered — filters are dynamic and applied per-request)
+      await notionCache.setPage(pageId, recordMap)
+
+      // Merge navigation link pages (custom nav style only)
+      if (navigationStyle !== 'default') {
+        const navMaps = await getNavigationLinkPages()
+        if (navMaps?.length) {
+          recordMap = navMaps.reduce((map, navMap) => {
+            const navPageId = Object.keys(navMap.block || {})[0]
+            if (!navPageId) return map
+            return navPageId === pageId ? map : mergeRecordMaps(map, navMap)
+          }, recordMap)
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, currentDelay))
-      delay *= 2
+      // Apply view filters (always last — filters depend on current date for relative ranges)
+      applyFormatPropertyFilters(recordMap)
+
+      return recordMap
+    } finally {
+      pendingPages.delete(pageId)
     }
-  }
-  throw new Error('Retry limit reached')
-}
+  })()
 
-/**
- * Fetches all pages linked in the site's navigation header.
- */
-const getNavigationLinkPages = async (): Promise<ExtendedRecordMap[]> => {
-  const navigationLinkPageIds = (navigationLinks || [])
-    .map((link) => link?.pageId)
-    .filter(Boolean)
-
-  if (navigationStyle !== 'default' && navigationLinkPageIds.length) {
-    return Promise.all(
-      navigationLinkPageIds.map(async (navigationLinkPageId) => {
-        // Check modular cache
-        const cached = await notionCache.getNavLinkPage(navigationLinkPageId)
-        if (cached) return cached
-
-        // Fetch "thin" version for nav metadata
-        const recordMap = await withRetry(() =>
-          notion.getPage(navigationLinkPageId, {
-            chunkLimit: 1,
-            fetchMissingBlocks: false,
-            fetchCollections: false,
-            signFileUrls: true,
-            concurrency: 1
-          })
-        )
-
-        await notionCache.setNavLinkPage(navigationLinkPageId, recordMap)
-        return recordMap
-      })
-    )
-  }
-
-  return []
-}
-
-/**
- * Main entry point for fetching a Notion page. 
- * Includes caching, gallery recovery, and navigation merging.
- */
-export async function getPage(
-  pageId: string,
-  source = 'unknown'
-): Promise<ExtendedRecordMap> {
-  // 1. Modular Cache Check
-  const cached = await notionCache.getPage(pageId)
-  if (cached) {
-    const collectionsCount = Object.keys(cached.collection || {}).length
-    const viewsCount = Object.keys(cached.collection_view || {}).length
-    
-    // Recovery Logic: If page has collections but no views, it's likely "thin" cached
-    if (collectionsCount > 0 && viewsCount === 0) {
-      console.log(`[Notion Cache] Page: ${pageId} has collections but 0 views. FORCING RE-FETCH.`)
-    } else {
-      console.log(`[Notion FS HIT] Page: ${pageId}. Collections: ${collectionsCount}, Views: ${viewsCount}`)
-      return cached
-    }
-  }
-
-  // 2. Fresh API Fetch
-  console.log(`[Notion] Cache MISS for page: ${pageId} (source: ${source}). Fetching...`)
-  let recordMap = await withRetry(() =>
-    notion.getPage(pageId, {
-      signFileUrls: false,
-      fetchCollections: true,
-      fetchMissingBlocks: true,
-      concurrency: 1
-    })
-  )
-
-  const collectionsCount = Object.keys(recordMap.collection || {}).length
-  const viewsCount = Object.keys(recordMap.collection_view || {}).length
-  console.log(`[Notion Fetch] Page: ${pageId}. Collections: ${collectionsCount}, Views: ${viewsCount}`)
-
-  // 3. Save to Caches
-  await notionCache.setPage(pageId, recordMap)
-
-  // 4. Navigation Merging
-  if (navigationStyle !== 'default') {
-    const navigationLinkRecordMaps = await getNavigationLinkPages()
-
-    if (navigationLinkRecordMaps?.length) {
-      recordMap = navigationLinkRecordMaps.reduce(
-        (map, navigationLinkRecordMap) => {
-          // Guard: Avoid merging the page into itself (prevents stripping collections)
-          const navPageId = Object.keys(navigationLinkRecordMap.block || {})[0]
-          if (navPageId === pageId) return map
-
-          return mergeRecordMaps(map, navigationLinkRecordMap)
-        },
-        recordMap
-      )
-    }
-  }
-
-  return recordMap
+  pendingPages.set(pageId, fetchPromise)
+  return fetchPromise
 }
 
 export async function search(params: SearchParams): Promise<SearchResults> {
