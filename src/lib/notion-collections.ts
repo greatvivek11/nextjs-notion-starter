@@ -5,6 +5,14 @@ import { withRetry } from './notion-retry'
 import { unwrap, extractBlockIdsFromCollectionQuery } from './notion-helpers'
 
 /**
+ * Module-level TTL cache for parent database fetches.
+ * Prevents `fetchLinkedDatabasePages` from firing on every request when the
+ * FS page cache is warm. Entries expire after PARENT_FETCH_TTL_MS.
+ */
+const recentParentFetches = new Map<string, number>()
+const PARENT_FETCH_TTL_MS = 5 * 60 * 1000 // 5 minutes
+
+/**
  * Collects view IDs that are actually embedded in a page's content tree.
  * Notion's getPage API returns all views from the parent collection, but
  * only views referenced by collection_view blocks in the page's content
@@ -192,9 +200,22 @@ export async function fetchLinkedCollections(
     for (const lrm of linkedMaps) {
       mergedMap = mergeRecordMaps(mergedMap, lrm)
     }
+  }
 
-    // Step 2: Fetch linked database parent pages for fresh article discovery
-    mergedMap = await fetchLinkedDatabasePages(linkedCollectionIds, mergedMap, missingBlockIds)
+  // Step 2: Fetch linked database parent pages for fresh article discovery.
+  // Guard with a TTL to avoid redundant API calls when the FS page cache is warm.
+  if (linkedCollectionIds.size > 0) {
+    const now = Date.now()
+    const staleIds = new Set(
+      Array.from(linkedCollectionIds).filter(
+        (cid) => !recentParentFetches.has(cid) || now - recentParentFetches.get(cid)! > PARENT_FETCH_TTL_MS
+      )
+    )
+
+    if (staleIds.size > 0) {
+      mergedMap = await fetchLinkedDatabasePages(staleIds, mergedMap, missingBlockIds)
+      staleIds.forEach((cid) => recentParentFetches.set(cid, now))
+    }
   }
 
   // Step 3: Gather page_sort block IDs from relevant views only

@@ -1,6 +1,7 @@
 import { createHash } from 'crypto'
 import type { ExtendedRecordMap } from 'notion-types'
-import { getBlockTitle, getPageContentBlockIds } from 'notion-utils'
+import { getBlockTitle, getPageContentBlockIds, parsePageId } from 'notion-utils'
+import { unwrap } from './notion-helpers'
 
 const READABLE_BLOCK_TYPES = new Set([
   'text',
@@ -72,11 +73,11 @@ export function extractArticleTranscript(
   pageId: string,
   recordMap: ExtendedRecordMap
 ): ArticleTranscript {
-  const blockIds = getPageContentBlockIds(recordMap)
+  const blockIds = getPageContentBlockIds(recordMap, parsePageId(pageId))
   const chunks: string[] = []
 
   for (const blockId of blockIds) {
-    const block = (recordMap.block?.[blockId] as any)?.value
+    const block = unwrap(recordMap.block?.[blockId])
     if (!block || !READABLE_BLOCK_TYPES.has(block.type)) {
       continue
     }
@@ -84,7 +85,7 @@ export function extractArticleTranscript(
     let title = ''
     if (block.type === 'table_row' && block.properties) {
       // Find parent table to get column order
-      const parentTable = (recordMap.block?.[block.parent_id] as any)?.value
+      const parentTable = unwrap(recordMap.block?.[block.parent_id])
       
       // Notion simple tables store column order in different places depending on context
       const columnOrder = 

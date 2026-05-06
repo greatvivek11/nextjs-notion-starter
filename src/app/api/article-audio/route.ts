@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { parsePageId } from 'notion-utils'
 
 import type {
   ArticleAudioLookupResponse,
@@ -13,26 +14,26 @@ import {
 } from '@/lib/article-audio-local'
 import { createArticleAudioStorage } from '@/lib/article-audio-storage'
 import { getPage } from '@/lib/notion'
-import { resolveNotionPage } from '@/lib/resolve-notion-page'
 
 const runningJobs = new Map<string, Promise<void>>()
 const pageCache = new Map<string, { data: any; timestamp: number }>()
 const CACHE_TTL = 60 * 1000 // 60 seconds
 
 async function resolveArticleAudioContext(pageId: string) {
+  // Normalize to UUID so both raw (no-dash) and hyphenated IDs share the same cache entry
+  const pageUuid = parsePageId(pageId)
   const now = Date.now()
-  const cached = pageCache.get(pageId)
+  const cached = pageCache.get(pageUuid)
   if (cached && now - cached.timestamp < CACHE_TTL) {
     return cached.data
   }
 
-  const recordMap = await getPage(pageId, 'AudioAPI')
+  const recordMap = await getPage(pageUuid, 'AudioAPI')
   if (!recordMap) {
     throw new Error('Unable to resolve Notion page.')
   }
 
-  const keys = Object.keys(recordMap.block || {})
-  const blockEntry = recordMap.block?.[keys[0]]
+  const blockEntry = recordMap.block?.[pageUuid]
   const block =
     (blockEntry as any)?.value?.value ||
     (blockEntry as any)?.value ||
@@ -53,7 +54,7 @@ async function resolveArticleAudioContext(pageId: string) {
   const data = {
     transcriptData
   }
-  pageCache.set(pageId, { data, timestamp: now })
+  pageCache.set(pageUuid, { data, timestamp: now })
   return data
 }
 

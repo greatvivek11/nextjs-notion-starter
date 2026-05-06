@@ -55,19 +55,22 @@ export function resolveViewFilters(
       const filterData = pf.filter
       if (!filterData?.property || !filterData.filter) return null
 
-      const targetPropId = filterData.property
-      const targetPropName = targetSchema[targetPropId]?.name
+      const sourcePropId = filterData.property
+      const propName = sourceSchema[sourcePropId]?.name
 
-      // Find the matching property ID in the source schema by name
-      let realPropId = targetPropId
-      if (targetPropName) {
-        const match = Object.entries(sourceSchema).find(([, v]: [string, any]) => v.name === targetPropName)
-        if (match) realPropId = match[0]
+      if (!propName) {
+        console.warn(`[Filters] Could not resolve property "${sourcePropId}" in sourceSchema. Skipping filter.`)
+        return null
       }
+
+      // Find the matching property ID in the target schema by name
+      let targetPropId = sourcePropId
+      const match = Object.entries(targetSchema).find(([, v]: [string, any]) => v.name === propName)
+      if (match) targetPropId = match[0]
 
       return {
         targetPropId,
-        propertyId: realPropId,
+        propertyId: sourcePropId,
         operator: filterData.filter.operator,
         targetValue: filterData.filter.value
       } satisfies ResolvedFilter
@@ -82,7 +85,10 @@ export function resolveViewFilters(
  * - Linked views (targetCollectionId ≠ collectionId): use parentage-based lookup merged
  *   with page_sort. Parentage is always fresh and catches newly added articles that
  *   haven't propagated to the linked view's stale cache yet.
- * - Non-linked views: use page_sort (most accurate pre-sorted list from Notion).
+ * - Non-linked views: merge page_sort with collection_query blockIds.
+ *   page_sort can be stale (may miss new articles); collection_query is always fresh.
+ *   NOTE: New articles from the collection_query are appended after page_sort items,
+ *   so they won't be in the correct sort position until Notion's view cache updates.
  * - Fallback: raw collection_query blockIds.
  */
 export function resolveBlockIdsForView(
@@ -107,8 +113,13 @@ export function resolveBlockIdsForView(
     return view?.page_sort?.length > 0 ? view.page_sort : fallbackBlockIds
   }
 
-  // Non-linked view: page_sort is most accurate
-  return view?.page_sort?.length > 0 ? view.page_sort : fallbackBlockIds
+  // Non-linked view: merge page_sort with fallbackBlockIds (collection_query results).
+  // page_sort can be stale and miss newly added articles, while collection_query
+  // blockIds from the API always include them.
+  if (view?.page_sort?.length > 0) {
+    return Array.from(new Set([...view.page_sort, ...fallbackBlockIds]))
+  }
+  return fallbackBlockIds
 }
 
 /**
