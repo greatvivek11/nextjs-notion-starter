@@ -43,3 +43,4 @@ tsconfig.tsbuildinfo
 
 .notion-cache
 ./notion-cache
+next-env.d.ts

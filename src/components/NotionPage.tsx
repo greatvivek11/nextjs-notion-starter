@@ -6,6 +6,7 @@ import React from 'react'
 import * as config from '@/lib/config'
 import { useDarkMode } from '@/lib/use-dark-mode'
 import { cn } from '@/lib/utils'
+import type { Block, ExtendedRecordMap } from 'notion-types'
 import type * as types from '@/types'
 
 import { Footer } from './Footer'
@@ -71,13 +72,18 @@ export const NotionPage: React.FC<types.PageProps> = (props) => {
     return <Page404 site={site} pageId={pageId} error={error} />
   }
 
-  const block = recordMap.block[Object.keys(recordMap.block)[0]]?.value as any
+  const block = recordMap.block[Object.keys(recordMap.block)[0]]?.value as Block
   if (!block) {
     return <Page404 site={site} pageId={pageId} error={error} />
   }
 
-  if (!config.isServer) {
-    const g = window as any
+  if (!config.isServer && process.env.NODE_ENV === 'development') {
+    interface WindowWithNotion extends Window {
+      pageId?: string
+      recordMap?: ExtendedRecordMap
+      block?: Block
+    }
+    const g = window as unknown as WindowWithNotion
     g.pageId = pageId
     g.recordMap = recordMap
     g.block = block

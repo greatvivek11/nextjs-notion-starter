@@ -39,9 +39,24 @@ const Mermaid = dynamic(() => import('./Mermaid').then((m) => m.Mermaid), {
   ssr: false
 })
 
-const Code = ({ block, className }: any) => {
-  const code = block.properties?.title?.[0]?.[0] || ''
-  const language = block.properties?.language?.[0]?.[0] || 'javascript'
+import {
+  Block,
+  CodeBlock,
+  PageBlock,
+  PdfBlock,
+  BaseContentBlock
+} from 'notion-types'
+
+const Code = ({
+  block,
+  className
+}: {
+  block: Block
+  className?: string
+}) => {
+  const properties = (block as CodeBlock).properties
+  const code = properties?.title?.[0]?.[0] || ''
+  const language = properties?.language?.[0]?.[0] || 'javascript'
 
   if (language.toLowerCase() === 'mermaid') {
     return <Mermaid chart={code} />
@@ -91,7 +106,7 @@ const ReactPdfComponents = dynamic(
   { ssr: false }
 )
 
-const CustomPdf = ({ file }: any) => {
+const CustomPdf = ({ file }: { file: string }) => {
   const [mounted, setMounted] = React.useState(false)
   const { recordMap } = useNotionContext()
 
@@ -106,10 +121,12 @@ const CustomPdf = ({ file }: any) => {
 
   if (recordMap?.block) {
     for (const [id, blockEntry] of Object.entries(recordMap.block)) {
-      const val = (blockEntry as any)?.value || blockEntry
-      if (val?.type === 'page' && !pageId) pageId = id
-      if (val?.type === 'pdf') {
-        const source = val?.properties?.source?.[0]?.[0]
+      const val = (blockEntry as { value: Block }).value
+      if (!val) continue
+
+      if (val.type === 'page' && !pageId) pageId = id
+      if (val.type === 'pdf') {
+        const source = (val as PdfBlock).properties?.source?.[0]?.[0]
         if (
           source === file ||
           source?.includes(file) ||
@@ -205,30 +222,9 @@ import { IoSunnyOutline } from '@react-icons/all-files/io5/IoSunnyOutline'
 // NotionPageHeader (Internal to Renderer Subsystem)
 // -----------------------------------------------------------------------------
 
-const ToggleThemeButton = () => {
-  const [hasMounted, setHasMounted] = React.useState(false)
-  const { isDarkMode, toggleDarkMode } = useDarkMode()
-
-  React.useEffect(() => {
-    setHasMounted(true)
-  }, [])
-
-  const onToggleTheme = React.useCallback(() => {
-    toggleDarkMode()
-  }, [toggleDarkMode])
-
-  return (
-    <div
-      className={cn('breadcrumb', 'button', !hasMounted && styles.hidden)}
-      onClick={onToggleTheme}
-    >
-      {hasMounted && isDarkMode ? <IoMoonSharp /> : <IoSunnyOutline />}
-    </div>
-  )
-}
 
 const NotionPageHeader: React.FC<{
-  block: any
+  block: Block
 }> = ({ block }) => {
   const { components, mapPageUrl } = useNotionContext()
 
@@ -251,7 +247,7 @@ const NotionPageHeader: React.FC<{
   }, [])
 
   if (appConfig.navigationStyle === 'default') {
-    return <Header block={block} />
+    return <Header block={block as PageBlock} />
   }
 
   // When using 'custom' navigation style, the <Navbar> in NotionPage.tsx
@@ -260,7 +256,7 @@ const NotionPageHeader: React.FC<{
   // The custom Navbar's search button functions by programmatically clicking the hidden '.notion-search-button'.
   return (
     <div style={{ display: 'none' }}>
-      <Search block={block} />
+      <Search block={block as PageBlock} />
     </div>
   )
 }
@@ -302,11 +298,29 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({
 }) => {
   const components = React.useMemo(
     () => ({
-      nextImage: ({ priority, ...props }: any) => {
+      nextImage: ({
+        priority,
+        alt,
+        ...props
+      }: {
+        priority?: boolean
+        src: string
+        alt?: string
+        className?: string
+        [key: string]: unknown
+      }) => {
+        // Notion cover images use a specific query param or className.
+        // We ensure they get 'priority' for LCP performance.
         const isCover =
           props.src?.includes('table=block') ||
           props.className?.includes('notion-page-cover')
-        return <Image {...props} priority={priority || isCover} />
+        return (
+          <Image
+            {...props}
+            alt={alt ?? ''}
+            priority={priority || isCover}
+          />
+        )
       },
       nextLink: Link,
       Code,

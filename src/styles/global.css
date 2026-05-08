@@ -334,43 +334,7 @@
   @apply rounded-2xl overflow-hidden my-8 border border-border/20 shadow-md;
 }
 
-/* Image Loading Skeleton */
-@keyframes shimmer-img {
-  0% { background-position: 200% 0; }
-  100% { background-position: -200% 0; }
-}
 
-img.notion-image,
-.notion-page-cover,
-.notion-collection-card-cover img,
-img.notion-page-icon,
-.notion-asset-wrapper-image img,
-.notion-image-inset img {
-  @apply bg-muted/30 text-transparent;
-  background-image: linear-gradient(
-    90deg,
-    rgba(150, 150, 150, 0.05) 0%,
-    rgba(150, 150, 150, 0.15) 50%,
-    rgba(150, 150, 150, 0.05) 100%
-  );
-  background-size: 200% 100%;
-  animation: shimmer-img 1.5s infinite linear;
-}
-
-.dark-mode img.notion-image,
-.dark-mode .notion-page-cover,
-.dark-mode .notion-collection-card-cover img,
-.dark-mode img.notion-page-icon,
-.dark-mode .notion-asset-wrapper-image img,
-.dark-mode .notion-image-inset img {
-  @apply bg-muted/10;
-  background-image: linear-gradient(
-    90deg,
-    rgba(200, 200, 200, 0.03) 0%,
-    rgba(200, 200, 200, 0.08) 50%,
-    rgba(200, 200, 200, 0.03) 100%
-  );
-}
 
 /* List spacing */
 .notion-list {
