@@ -1,6 +1,7 @@
 'use client'
 
 import { useDarkMode } from '@/lib/use-dark-mode'
+import mediumZoom from '@fisch0920/medium-zoom'
 import * as React from 'react'
 
 // -----------------------------------------------------------------------------
@@ -10,9 +11,10 @@ import * as React from 'react'
 export const Mermaid: React.FC<{
   chart: string
 }> = ({ chart }) => {
-  const [svg, setSvg] = React.useState<string | null>(null)
+  const [svgDataUrl, setSvgDataUrl] = React.useState<string | null>(null)
   const [error, setError] = React.useState<string | null>(null)
   const { isDarkMode } = useDarkMode()
+  const imgRef = React.useRef<HTMLImageElement>(null)
 
   React.useEffect(() => {
     let isMounted = true
@@ -32,7 +34,16 @@ export const Mermaid: React.FC<{
         const { svg: renderedSvg } = await mermaid.render(id, chart)
 
         if (isMounted) {
-          setSvg(renderedSvg)
+          // Clean the SVG string to make it fully fluid but with a large natural size.
+          // We set a large width (e.g., 2000) so that the browser and zoom library
+          // treat it as a high-resolution image, enabling better zooming.
+          const fluidSvg = renderedSvg
+            .replace(/width=".*?"/, 'width="2000"')
+            .replace(/height=".*?"/, '')
+            .replace(/style=".*?"/, '')
+
+          const base64 = btoa(unescape(encodeURIComponent(fluidSvg)))
+          setSvgDataUrl(`data:image/svg+xml;base64,${base64}`)
           setError(null)
         }
       } catch (err: any) {
@@ -49,6 +60,19 @@ export const Mermaid: React.FC<{
       isMounted = false
     }
   }, [chart, isDarkMode])
+
+  // Initialize medium-zoom when the image is ready
+  React.useEffect(() => {
+    if (svgDataUrl && imgRef.current) {
+      const zoom = mediumZoom(imgRef.current, {
+        background: isDarkMode ? '#1a1a1a' : '#fff',
+        margin: 0 // Allow image to fill screen more fully
+      })
+      return () => {
+        zoom.detach()
+      }
+    }
+  }, [svgDataUrl, isDarkMode])
 
   if (error) {
     return (
@@ -70,7 +94,7 @@ export const Mermaid: React.FC<{
     )
   }
 
-  if (!svg) {
+  if (!svgDataUrl) {
     return (
       <div
         className='mermaid-loading'
@@ -92,12 +116,29 @@ export const Mermaid: React.FC<{
       style={{
         display: 'flex',
         justifyContent: 'center',
-        margin: '2rem 0',
+        margin: '2.5rem auto',
         width: '100%',
-        overflowX: 'auto'
+        maxWidth: '100%',
+        overflow: 'hidden'
       }}
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: Mermaid output is generated SVG
-      dangerouslySetInnerHTML={{ __html: svg }}
-    />
+    >
+      <img
+        ref={imgRef}
+        src={svgDataUrl}
+        className='medium-zoom-image'
+        style={{
+          maxWidth: '100%',
+          maxHeight: '600px', // Constrain vertical space for long flowcharts
+          width: 'auto', // Center and fit within container
+          height: 'auto',
+          display: 'block',
+          cursor: 'zoom-in',
+          borderRadius: '12px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.05)',
+          background: 'transparent',
+          animation: 'none' // Explicitly disable any inherited shimmer
+        }}
+      />
+    </div>
   )
 }
