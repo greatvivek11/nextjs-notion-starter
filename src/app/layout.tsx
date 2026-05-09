@@ -11,6 +11,8 @@ import 'react-notion-x/src/styles.css'
 // import 'prismjs/themes/prism-okaidia.css'
 // global style overrides for notion
 import '@/styles/notion.css'
+import '@/styles/notion-homepage.css'
+import '@/styles/notion-mobile.css'
 // global style overrides for prism theme (optional)
 
 import { appConfig } from '@/lib/config'

@@ -1,0 +1,552 @@
+/* ============================================================
+   GLOBAL HOMEPAGE OVERRIDES
+   ============================================================ */
+
+/* Hide the aside (sticky social icons) on tablets and smaller viewports for the homepage */
+@media only screen and (max-width: 1100px) {
+  .index-page .notion-aside {
+    display: none !important;
+  }
+
+  /* Completely reset the aside container so it behaves exactly like a normal page, fixing the iPad/Surface rightward shift */
+  .index-page .notion-page-content-has-aside {
+    width: 100% !important;
+    max-width: var(--notion-max-width) !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important; /* Force center alignment of children */
+    justify-content: flex-start !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+  }
+
+  .index-page .notion-page-content-has-aside .notion-page-content-inner {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: stretch !important; /* Ensure blocks span full width so text-align: center works normally */
+  }
+
+  /* Explicitly center headings within the inner content for these views */
+  .index-page .notion-page-content-has-aside .notion-title,
+  .index-page .notion-page-content-has-aside .notion-h,
+  .index-page .notion-page-content-has-aside .notion-h1,
+  .index-page .notion-page-content-has-aside .notion-h2,
+  .index-page .notion-page-content-has-aside .notion-h3 {
+    width: 100% !important;
+    text-align: center !important;
+  }
+}
+
+/* Ensure title and headings are centered and correctly weighted globally */
+.index-page .notion-title {
+  display: block !important;
+  text-align: center !important;
+  font-weight: 800;
+  font-size: clamp(2.2rem, 6vw, 4rem);
+  margin-top: 0;
+  margin-bottom: 0.25rem;
+}
+
+.index-page .notion-h1 {
+  display: block !important;
+  text-align: center !important;
+  font-weight: 600;
+  font-size: clamp(1.4rem, 4vw, 2.2rem);
+}
+
+.index-page .notion-h2 {
+  display: block !important;
+  text-align: center !important;
+  font-weight: 600;
+  font-size: clamp(1.2rem, 3vw, 1.8rem);
+}
+
+.index-page .notion-h3, .index-page .notion-h {
+  display: block !important;
+}
+
+/* Escape Hatch: If the user placed a standalone heading inside a Notion column (used for manual centering), 
+   force the column to be 100% wide so it centers perfectly globally (Desktop & Mobile). 
+   We use :not(:has(.notion-text, .notion-list)) to ensure we don't accidentally break multi-column sections 
+   like the Skillset table where headings are mixed with text blocks. */
+.index-page .notion-row:has(> .notion-column:not(:has(.notion-text, .notion-list, .notion-asset-wrapper)):has(.notion-h1, .notion-h2, .notion-h3)) {
+  flex-wrap: wrap !important;
+  justify-content: center !important;
+}
+
+.index-page .notion-column:not(:has(.notion-text, .notion-list, .notion-asset-wrapper)):has(.notion-h1, .notion-h2, .notion-h3) {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 100% !important;
+  flex: 0 0 100% !important;
+}
+
+/* Fix desktop gaps between title, subtitle, and intro */
+.index-page .notion-block-a869e19a3e74488ca16349aee7581cb2 {
+  margin-top: 0.5rem;
+  margin-bottom: 0.25rem;
+  padding: 0;
+}
+
+.index-page .notion-block-fbd8305bf95341418ff30f0f32a36622,
+.index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 {
+  margin: 0 0 0.75rem 0;
+  padding: 0;
+}
+
+@media only screen and (max-width: 1100px) {
+  .index-page .notion-page {
+    overflow-x: clip !important;
+    padding-top: 0 !important;
+  }
+
+  /* 1. Cover image: contain, don't overflow */
+  .index-page .notion-page-cover-wrapper,
+  .index-page .notion-page-cover-wrapper span,
+  .index-page .notion-page-cover-wrapper img,
+  .index-page .notion-page-cover,
+  .index-page .notion-page-cover img {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+    border-radius: 0 !important;
+    object-fit: contain !important;
+  }
+
+  /* 2. ALL headings: center, kill default spacing */
+  .index-page .notion-title,
+  .index-page .notion-h,
+  .index-page .notion-h1,
+  .index-page .notion-h2,
+  .index-page .notion-h3 {
+    display: block !important;
+    text-align: center !important;
+    white-space: normal !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    line-height: 1.15 !important;
+  }
+
+  /* Reduce the gap between cover image and page content */
+  .index-page .notion-page-content-inner {
+    padding-top: 0;
+    margin-top: -1rem;
+  }
+
+  /* Azure AI Developer ROW (fbd8305b): compact but with breathing room */
+  .index-page .notion-block-fbd8305bf95341418ff30f0f32a36622 {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 0 0.75rem 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .index-page .notion-block-fbd8305bf95341418ff30f0f32a36622 .notion-column {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  .index-page .notion-block-fbd8305bf95341418ff30f0f32a36622 .notion-spacer {
+    display: none !important;
+  }
+
+  /* Introduction ROW (9ef57da8): compact with bottom breathing room */
+  .index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 0 0.75rem 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 .notion-column {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+  }
+
+  .index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 .notion-spacer,
+  .index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 .notion-blank {
+    display: none !important;
+  }
+
+  /* ============================================================
+     HERO ROW (9a4ad916...ba93b6e82da6a546) — CORRECT block ID!
+     Previous CSS used wrong ID (ba937b) so nothing ever applied.
+     This row is 633px tall — we collapse it and stack vertically.
+     ============================================================ */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 {
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  /* Kill spacers inside hero row */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-spacer {
+    display: none !important;
+  }
+
+  /* Force hero columns to stack vertically at full width */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-column {
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Profile picture figure: set explicit width, remove gray background */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-asset-wrapper,
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-asset-wrapper-image {
+    width: min(75vw, 500px) !important;
+    max-width: min(75vw, 500px) !important;
+    margin: 0 auto !important;
+    padding: 0 !important;
+    background: transparent !important;
+    background-color: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Inner div inside the figure — let it fill the figure */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-asset-wrapper-image > div {
+    padding: 0 !important;
+    margin: 0 !important;
+    background: transparent !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Profile picture img: fill the container */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-asset-wrapper-image img,
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 figure img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    display: block !important;
+    margin: 0 auto !important;
+    border-radius: 1.25rem !important;
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.15) !important;
+    object-fit: cover !important;
+  }
+
+  /* Hide blank spacers between intro text blocks */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-blank {
+    display: none !important;
+  }
+
+  /* Intro text below the profile pic — tighter spacing */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-text {
+    text-align: center !important;
+    padding: 0.35rem 1rem !important;
+    margin: 0.35rem 0 !important;
+  }
+
+  /* First intro text gets extra top breathing room from the pic */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-text:first-child {
+    margin-top: 0.75rem !important;
+  }
+
+  /* ============================================================
+     BADGES SECTION (a2f58273): 3-column mosaic
+     ============================================================ */
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 1.25rem !important;
+    width: 100% !important;
+    overflow: visible !important;
+    padding: 1rem 0.5rem !important;
+  }
+
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 > .notion-column {
+    display: contents !important;
+  }
+
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 .notion-spacer,
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 .notion-blank {
+    display: none !important;
+  }
+
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 .notion-asset-wrapper-image {
+    width: min(28vw, 180px) !important;
+    max-width: 100% !important;
+    justify-self: center;
+    align-self: center;
+  }
+
+  /* Skillset Section: tabular view for tablets (wide screens) */
+}
+/* --- Homepage mobile polish (≤600px) ---
+   These overrides are intentionally scoped to the root Notion page. The home
+   page uses wide, showcase-style Notion column blocks that need different
+   mobile behavior from article pages. */
+@media only screen and (max-width: 600px) {
+  .index-page {
+    --notion-max-width: 100%;
+  }
+
+  .index-page .notion-page,
+  .index-page .notion-page-content,
+  .index-page .notion-page-content-inner,
+  .index-page .notion-row,
+  .index-page .notion-column,
+  .index-page .notion-asset-wrapper {
+    box-sizing: border-box;
+    max-width: 100% !important;
+    min-width: 0 !important;
+  }
+
+  .index-page .notion-page {
+    overflow-x: clip;
+  }
+
+  .index-page .notion-page-content-inner {
+    width: 100% !important;
+    align-items: stretch;
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .index-page .notion-title,
+  .index-page .notion-h,
+  .index-page .notion-h1,
+  .index-page .notion-h2,
+  .index-page .notion-h3 {
+    display: block;
+    max-width: 100%;
+    overflow-wrap: anywhere;
+    text-wrap: balance;
+  }
+
+  .index-page .notion-title {
+    font-size: clamp(1.8rem, 9vw, 2.35rem) !important;
+  }
+
+  .index-page .notion-h1 {
+    font-size: clamp(1.3rem, 6vw, 1.6rem) !important;
+  }
+
+  .index-page .notion-h2 {
+    font-size: clamp(1.1rem, 5.4vw, 1.4rem) !important;
+  }
+
+  .index-page .notion-h3 {
+    margin-top: 0;
+    margin-bottom: 0.6rem;
+  }
+
+  /* Mobile: Collapse subtitle & intro heading rows (same as tablet) */
+  .index-page .notion-block-fbd8305bf95341418ff30f0f32a36622 {
+    margin: 0.5rem 0 0 0 !important; /* Give subtitle a bit of space below the title */
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 {
+    margin: 0 !important;
+    padding: 0 !important;
+    min-height: 0 !important;
+    height: auto !important;
+  }
+
+  .index-page .notion-block-fbd8305bf95341418ff30f0f32a36622 .notion-spacer,
+  .index-page .notion-block-fbd8305bf95341418ff30f0f32a36622 .notion-blank,
+  .index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 .notion-spacer,
+  .index-page .notion-block-9ef57da840544a3ea5677e7636177fd1 .notion-blank {
+    display: none !important;
+  }
+
+  .index-page .notion-text {
+    padding-top: 0.32rem;
+    padding-bottom: 0.32rem;
+    line-height: 1.58;
+  }
+
+  /* --- Mobile polish (≤600px) --- */
+  .index-page .notion-blank {
+    display: none;
+  }
+
+  .index-page .notion-asset-wrapper {
+    margin-top: 0.7rem;
+    margin-bottom: 0.7rem;
+  }
+
+  .index-page .notion-asset-wrapper-image {
+    width: 100%;
+  }
+
+  /* Mobile: ensure cover image fits within viewport */
+  .index-page .notion-page-cover-wrapper,
+  .index-page .notion-page-cover-wrapper span,
+  .index-page .notion-page-cover-wrapper img {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: auto !important;
+  }
+
+  /* Intro Section: Hero row with profile pic + intro text
+     CORRECT block ID: ba93b6e (NOT ba937b6e) */
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 {
+    flex-direction: column !important;
+    gap: 0 !important;
+    width: 100% !important;
+    overflow: visible !important;
+  }
+
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 > .notion-column {
+    width: 100% !important;
+    max-width: 100% !important;
+    align-items: stretch;
+    padding: 0 !important;
+    text-align: left;
+  }
+
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-blank {
+    display: none !important;
+  }
+
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-asset-wrapper-image {
+    width: min(72vw, 260px) !important;
+    max-width: min(72vw, 260px) !important;
+    align-self: center;
+    margin: 0 auto !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+  }
+
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-asset-wrapper-image > div {
+    width: 100% !important;
+    padding: 0 !important;
+    background: transparent !important;
+  }
+
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-asset-wrapper-image img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 auto;
+    border-radius: 1rem !important;
+  }
+
+  .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-text {
+    text-align: left;
+    margin: 0.25rem 0 !important;
+    padding: 0.3rem 0 !important;
+  }
+
+  /* Azure badges Section
+     Using specific block ID for mosaic pattern. */
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 0.9rem !important;
+    width: 100% !important;
+    overflow: visible !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.75rem !important;
+  }
+
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 > .notion-column {
+    display: contents !important;
+  }
+
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 .notion-spacer,
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 .notion-blank {
+    display: none !important;
+  }
+
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 .notion-asset-wrapper-image {
+    width: min(38vw, 142px) !important;
+    max-width: min(38vw, 142px) !important;
+    justify-self: center;
+    align-self: center;
+    margin: 0 !important;
+  }
+
+  .index-page .notion-block-a2f58273435540c7be9b38a3cca7a811 .notion-asset-wrapper-image img {
+    width: 100% !important;
+    max-width: 100% !important;
+    height: auto !important;
+    margin: 0 auto;
+  }
+
+  /* Skillset Section
+     Using specific block ID for card format. */
+  .index-page .notion-block-3d30db2722f84441a6bd7c8e06ebfeb8 {
+    display: flex !important;
+    flex-direction: column !important;
+    flex-wrap: wrap !important;
+    gap: 1rem !important;
+    width: 100% !important;
+    overflow-x: visible !important;
+    padding-bottom: 0 !important;
+  }
+
+  .index-page .notion-block-3d30db2722f84441a6bd7c8e06ebfeb8 > .notion-spacer {
+    display: none !important;
+  }
+
+  .index-page .notion-block-3d30db2722f84441a6bd7c8e06ebfeb8 > .notion-column {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    flex-shrink: 1 !important;
+    padding: 1rem !important;
+    text-align: left !important;
+    border: 1px solid rgba(148, 163, 184, 0.28) !important;
+    border-radius: 0.5rem !important;
+    background: rgba(248, 250, 252, 0.72) !important;
+  }
+
+  .dark-mode .index-page .notion-block-3d30db2722f84441a6bd7c8e06ebfeb8 > .notion-column {
+    border-color: rgba(148, 163, 184, 0.18) !important;
+    background: rgba(15, 23, 42, 0.42) !important;
+  }
+
+  .index-page .notion-block-3d30db2722f84441a6bd7c8e06ebfeb8 .notion-h {
+    width: 100% !important;
+    font-size: 1.15rem !important;
+    text-align: left !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  .index-page .notion-block-3d30db2722f84441a6bd7c8e06ebfeb8 .notion-text {
+    padding-top: 0.18rem !important;
+    padding-bottom: 0.18rem !important;
+    text-align: left !important;
+    overflow-wrap: anywhere !important;
+  }
+}
