@@ -1,11 +1,11 @@
 import { NotionPage } from '@/components/NotionPage'
-import { appConfig, revalidateTTL } from '@/lib/config'
+import { appConfig } from '@/lib/config'
 import { buildPageMetadata } from '@/lib/metadata-builder'
 import { resolvePageModel } from '@/lib/page-model'
 import { getAllTags, resolveTagPage } from '@/lib/tag-service'
 import { normalizeTitle } from 'notion-utils'
 
-export const revalidate = revalidateTTL
+export const revalidate = 3600
 
 export async function generateMetadata({
   params

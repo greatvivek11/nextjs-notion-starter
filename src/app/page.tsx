@@ -1,12 +1,12 @@
 import { NotionPage } from '@/components/NotionPage'
-import { appConfig, revalidateTTL } from '@/lib/config'
+import { appConfig } from '@/lib/config'
 import { buildPageMetadata } from '@/lib/metadata-builder'
 import { resolvePageModel } from '@/lib/page-model'
 import { resolveNotionPage } from '@/lib/resolve-notion-page'
 import { Analytics } from '@vercel/analytics/react'
 import { SpeedInsights } from '@vercel/speed-insights/next'
 
-export const revalidate = revalidateTTL
+export const revalidate = 3600
 
 export async function generateMetadata() {
   try {

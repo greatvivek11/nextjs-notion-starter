@@ -9,14 +9,12 @@ By default, the site uses a local filesystem cache. On Vercel, this cache is eph
 
 - **Solution**: Implemented Upstash Redis as a persistent cache.
 - **Compression**: All data stored in Redis is Gzip-compressed. This reduces the memory footprint by ~90%, allowing 800+ articles to fit easily within the 256MB Upstash free tier.
-- **Auto-Config**: The site automatically detects `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` environment variables.
+- **Auto-Config**: The site automatically detects `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` or `KV_REST_API_URL` / `KV_REST_API_TOKEN` environment variables.
 
-### 2. Configurable Revalidation (ISR)
-The `revalidate` interval for pages is now configurable via environment variables.
+### 2. Revalidation Interval (ISR)
+Pages use a 1-hour ISR revalidation interval (`export const revalidate = 3600`). The Redis cache soft-expiration is kept in sync via `revalidateTTL` in `src/lib/config.ts`.
 
-- **Variable**: `REVALIDATE_TTL`
-- **Default**: `3600` (1 hour)
-- **Benefit**: Reduces the frequency of background revalidations triggered by bots and crawlers, keeping "Fluid Provisioned Memory" usage low.
+> **Note:** Next.js 16 requires `revalidate` to be a numeric literal in page files. To change the interval, update both the `revalidate` value in the 3 page files (`page.tsx`, `[pageId]/page.tsx`, `tags/[tagName]/page.tsx`) and `revalidateTTL` in `config.ts`, then redeploy.
 
 ### 3. Sitemap Removal
 For sites with 800+ articles, generating a sitemap on every request is extremely expensive. It requires traversing the entire Notion workspace structure.
@@ -31,10 +29,10 @@ For the article audio "Listen" feature, we use Vercel Blob to store and serve th
 
 To enable these optimizations on Vercel:
 
-1. **Connect Upstash Redis**: Use the Vercel Upstash Integration to add the database to your project.
-2. **Set TTL**: (Optional) Add `REVALIDATE_TTL` as an environment variable (e.g., `86400` for 24 hours).
+1. **Connect Upstash Redis**: Use the Vercel Upstash Integration to add the database to your project. The app accepts either `UPSTASH_REDIS_REST_*` or `KV_REST_API_*` variable names.
+2. **Revalidation**: The default is 1 hour. To change it, update the hardcoded values in the page files and `config.ts` (see note above).
 
 ## Troubleshooting
 
 - **Redis Error**: If Redis is not configured, the site will transparently fall back to the local filesystem cache.
-- **Slow Updates**: If you add a new article and want to see it immediately, you can either trigger a manual revalidation or temporarily lower `REVALIDATE_TTL`.
+- **Slow Updates**: If you add a new article and want to see it immediately, you can trigger a manual revalidation by visiting the page after the revalidation window expires (1 hour by default).
