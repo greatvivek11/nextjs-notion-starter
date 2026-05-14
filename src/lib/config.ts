@@ -119,6 +119,12 @@ export const notionMaxConcurrency = 3
 export const notionRetryDelay = 20000 // 20s as requested by user
 export const notionCacheTTL = 10 * 60 * 1000 // 10 minutes (in-memory)
 export const notionCacheDir = '.notion-cache'
+export const revalidateTTL = Number.parseInt(getEnv('REVALIDATE_TTL', '3600'), 10)
+
+// Redis TTLs (in seconds)
+export const redisPageTTL = 7 * 24 * 60 * 60 // 7 days
+export const redisNavTTL = 7 * 24 * 60 * 60 // 7 days
+export const redisSitemapTTL = 24 * 60 * 60 // 24 hours
 
 // ----------------------------------------------------------------------------
 

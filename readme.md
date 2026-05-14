@@ -18,7 +18,7 @@ This project is a fork of Travis Fischer's [nextjs-notion-starter-kit](https://g
 - ISR-based page generation for the root page, child pages, and tag pages
 - Custom Notion renderer integrations for code highlighting, equations, collections, tweets, and PDFs
 - Search API proxy backed by the Notion search endpoint
-- Generated `sitemap.xml` and `robots.txt`
+- Generated `robots.txt`
 - Optional Vercel Analytics and Speed Insights on the homepage
 - A custom `/api/notion-pdf` proxy to re-sign expiring Notion-hosted PDF URLs
 
@@ -130,6 +130,7 @@ More details are in:
 - [Notion setup](./docs/Notion.md)
 - [System architecture](./docs/System_Architecture.md)
 - [Project structure](./docs/Project_Structure.md)
+- [Vercel optimization](./docs/vercel-optimization.md)
 - [Blueprint / onboarding notes](./docs/Blueprint.md)
 
 ## Deployment
@@ -139,6 +140,13 @@ The easiest way to deploy is using [Vercel](https://vercel.com/):
 1. Push your code to GitHub.
 2. Connect your repo to Vercel.
 3. Add your Environment Variables in the Vercel dashboard.
+
+### Recommended Vercel Integrations
+
+While the core application is platform-agnostic, we recommend the following Vercel integrations for the best experience:
+
+- **[Vercel Blob](https://vercel.com/storage/blob)**: Used for storing and serving generated article audio. Enable this if you use the "Listen" feature.
+- **[Upstash Redis](https://vercel.com/integrations/upstash)**: Used for persistent caching with Gzip compression. Highly recommended for sites with many articles to keep memory usage within free tier limits.
 
 ### Cron behavior
 
