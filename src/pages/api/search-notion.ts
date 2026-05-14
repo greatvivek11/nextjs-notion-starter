@@ -12,9 +12,7 @@ export default async function handler(
 
   const searchParams: types.SearchParams = req.body
 
-  // console.log('<<< lambda search-notion', searchParams)
   const results = await search(searchParams)
-  // console.log('>>> lambda search-notion', results)
 
   res.setHeader(
     'Cache-Control',

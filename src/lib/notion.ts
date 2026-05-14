@@ -7,7 +7,7 @@ import { withRetry } from './notion-retry'
 import { applyFormatPropertyFilters } from './notion-filters'
 import { fetchLinkedCollections } from './notion-collections'
 import { getNavigationLinkPages } from './notion-navigation'
-import { navigationStyle } from './config'
+import { navigationStyle, rootNotionPageId } from './config'
 
 // ---------------------------------------------------------------------------
 // Request Deduplication
@@ -101,16 +101,60 @@ export async function getPage(pageId: string, source = 'unknown'): Promise<Exten
 }
 
 export async function search(params: SearchParams): Promise<SearchResults> {
-  return notion.search({
+  const ancestorId = parsePageId(params.ancestorId) || rootNotionPageId
+
+  const searchPayload = {
     query: params.query,
-    ancestorId: parsePageId(params.ancestorId),
+    ancestorId,
     type: 'BlocksInAncestor',
     filters: {
       isDeletedOnly: false,
-      isNavigableOnly: false,
+      isNavigableOnly: true,
       excludeTemplates: false,
-      requireEditPermissions: false
-    },
-    ...params
-  } as any)
+      requireEditPermissions: false,
+      ...params.filters
+    }
+  }
+
+  const results = await notion.search(searchPayload as any)
+
+  // Notion search API doesn't always return the blocks in recordMap anymore.
+  // We need to fetch any missing blocks manually so react-notion-x can render the results.
+  const resultIds = (results.results || []).map((r: any) => r.id)
+  
+  if (!results.recordMap) {
+    results.recordMap = { block: {} } as any
+  } else if (!results.recordMap.block) {
+    results.recordMap.block = {}
+  }
+
+  const missingBlockIds = resultIds.filter((id: string) => !results.recordMap.block[id])
+
+  if (missingBlockIds.length > 0) {
+    try {
+      const { recordMap } = await notion.getBlocks(missingBlockIds)
+      if (recordMap?.block) {
+        Object.assign(results.recordMap.block, recordMap.block)
+      }
+    } catch (err) {
+      // Silently fail if fetching blocks fails; react-notion-x will just filter them out
+    }
+  }
+
+  // Double-wrapping fix:
+  // Sometimes Notion's search API returns blocks where 'block[id].value' contains 
+  // another 'value' property that actually holds the block data. 
+  // react-notion-x only looks at 'block[id].value', so we must unwrap if necessary.
+  if (results.recordMap?.block) {
+    for (const blockId of Object.keys(results.recordMap.block)) {
+      const blockModel = results.recordMap.block[blockId]
+      const value = (blockModel as any)?.value
+      if (value?.value) {
+        // Double-wrapped! Unwrap it.
+        ;(blockModel as any).value = value.value
+      }
+    }
+  }
+
+  return results
 }
