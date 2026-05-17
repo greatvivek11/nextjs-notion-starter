@@ -45,17 +45,20 @@ class NotionCache {
   private navLinkCache = new Map<string, ExtendedRecordMap>()
   private sitemapCache = new Map<string, CachedSitemap>()
 
-  private shouldBypassRedis(source?: string): boolean {
-    const isBuildPhase =
+  public get isBuildPhase(): boolean {
+    return (
       process.env.NEXT_PHASE === 'phase-production-build' ||
       fsSync.existsSync(path.join(FS_CACHE_DIR, '.build-phase'))
+    )
+  }
 
-    return isBuildPhase && source !== 'build-warmup'
+  private shouldBypassRedis(source?: string): boolean {
+    return this.isBuildPhase && source !== 'build-warmup'
   }
 
   async getPage(pageId: string, source?: string): Promise<ExtendedRecordMap | null> {
     const now = Date.now()
-    const effectiveTTL = source === 'build-warmup' ? redisPageTTL : revalidateTTL
+    const effectiveTTL = (source === 'build-warmup' || this.isBuildPhase) ? redisPageTTL : revalidateTTL
 
     // 1. Memory Check
     const cached = this.memoryCache.get(pageId)
@@ -220,7 +223,7 @@ class NotionCache {
 
   async getSitemap(cacheKey: string, source?: string): Promise<Partial<types.SiteMap> | null> {
     const now = Date.now()
-    const effectiveTTL = source === 'build-warmup' ? redisSitemapTTL : revalidateTTL
+    const effectiveTTL = (source === 'build-warmup' || this.isBuildPhase) ? redisSitemapTTL : revalidateTTL
 
     // 1. Memory Check
     const cached = this.sitemapCache.get(cacheKey)
