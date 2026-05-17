@@ -26,7 +26,8 @@ const redis =
   (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)
     ? new Redis({
         url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!
+        token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!,
+        cache: 'default'
       })
     : null
 
@@ -85,6 +86,7 @@ class NotionCache {
           if (now - cachedData.timestamp < effectiveTTL * 1000) {
             console.log(`[Notion Redis HIT] Page: ${pageId}`)
             this.memoryCache.set(pageId, cachedData)
+            await this.setFsCachedPage(pageId, cachedData.data, false)
             return cachedData.data
           } else {
             console.log(`[Notion Redis STALE] Page: ${pageId} - Triggering refresh`)
@@ -144,6 +146,7 @@ class NotionCache {
 
           if (now - cachedData.timestamp < effectiveTTL * 1000) {
             this.navLinkCache.set(pageId, cachedData.data)
+            await this.setFsCachedPage(pageId, cachedData.data, true)
             return cachedData.data
           }
         }
@@ -264,6 +267,12 @@ class NotionCache {
 
           if (now - cachedData.timestamp < effectiveTTL * 1000) {
             this.sitemapCache.set(cacheKey, cachedData)
+            try {
+              await fs.mkdir(FS_CACHE_DIR, { recursive: true })
+              await fs.writeFile(SITEMAP_CACHE_FILE, JSON.stringify(cachedData.data), 'utf8')
+            } catch (err) {
+              // Ignore
+            }
             return cachedData.data
           }
         }
