@@ -35,10 +35,10 @@ const getAllPages = async (
   }
 
   console.log(`[Notion Sitemap] Cache MISS. Fetching full space map from API...`)
-  const result = await getAllPagesImpl(rootNotionPageId, rootNotionSpaceId)
+  const result = await getAllPagesImpl(rootNotionPageId, rootNotionSpaceId, source)
 
   // 2. Save to modular cache
-  await notionCache.setSitemap(cacheKey, result)
+  await notionCache.setSitemap(cacheKey, result, source)
   console.log(`[Notion Sitemap] Successfully saved to modular cache.`)
 
   return result
@@ -46,10 +46,11 @@ const getAllPages = async (
 
 async function getAllPagesImpl(
   rootNotionPageId: string,
-  rootNotionSpaceId: string
+  rootNotionSpaceId: string,
+  source?: string
 ): Promise<Partial<types.SiteMap>> {
   const getPage = async (pageId: string) => {
-    return getPageRobust(pageId, 'SiteMap')
+    return getPageRobust(pageId, source || 'SiteMap')
   }
 
   const pageMap = await getAllPagesInSpace(

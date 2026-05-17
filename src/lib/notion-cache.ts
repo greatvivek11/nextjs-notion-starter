@@ -50,7 +50,7 @@ class NotionCache {
       process.env.NEXT_PHASE === 'phase-production-build' ||
       fsSync.existsSync(path.join(FS_CACHE_DIR, '.build-phase'))
 
-    return isBuildPhase && source !== 'build-warmup' && source !== 'SiteMap'
+    return isBuildPhase && source !== 'build-warmup'
   }
 
   async getPage(pageId: string, source?: string): Promise<ExtendedRecordMap | null> {
@@ -233,6 +233,16 @@ class NotionCache {
       const stats = await fs.stat(SITEMAP_CACHE_FILE)
       if (now - stats.mtimeMs < effectiveTTL * 1000) {
         const data = await fs.readFile(SITEMAP_CACHE_FILE, 'utf8')
+        
+        // During warmup, touch the sitemap file to update mtime so rendering workers
+        // (which use a shorter TTL) will find it fresh.
+        if (source === 'build-warmup') {
+          const touchTime = new Date()
+          await fs.utimes(SITEMAP_CACHE_FILE, touchTime, touchTime).catch(() => {
+            // Ignore utimes failure
+          })
+        }
+        
         const result = JSON.parse(data)
         this.sitemapCache.set(cacheKey, { data: result, timestamp: stats.mtimeMs })
         return result
@@ -242,7 +252,7 @@ class NotionCache {
     }
 
     // 3. Redis Check
-    if (redis) {
+    if (redis && !this.shouldBypassRedis(source)) {
       try {
         const compressed = await redis.get<string>(`sitemap:${cacheKey}`)
         if (compressed) {
@@ -262,11 +272,11 @@ class NotionCache {
     return null
   }
 
-  async setSitemap(cacheKey: string, data: Partial<types.SiteMap>) {
+  async setSitemap(cacheKey: string, data: Partial<types.SiteMap>, source = 'unknown') {
     const timestamp = Date.now()
     this.sitemapCache.set(cacheKey, { data, timestamp })
 
-    if (redis) {
+    if (redis && !this.shouldBypassRedis(source)) {
       try {
         const cacheObj: CachedSitemap = { data, timestamp }
         const compressed = await gzip(JSON.stringify(cacheObj))
