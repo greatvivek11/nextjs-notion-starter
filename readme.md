@@ -130,6 +130,8 @@ More details are in:
 - [Notion setup](./docs/Notion.md)
 - [System architecture](./docs/System_Architecture.md)
 - [Project structure](./docs/Project_Structure.md)
+- [Vercel caching & ISR architecture](./docs/vercel-caching-and-isr-architecture.md)
+- [Upstash Redis & Notion best practices](./docs/upstash-redis-and-notion-best-practices.md)
 - [Vercel optimization](./docs/vercel-optimization.md)
 - [Blueprint / onboarding notes](./docs/Blueprint.md)
 
