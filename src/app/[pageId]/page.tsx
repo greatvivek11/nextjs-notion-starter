@@ -26,7 +26,7 @@ export async function generateMetadata({
 
 export async function generateStaticParams() {
   try {
-    const siteMap = await getSiteMap()
+    const siteMap = await getSiteMap('build-warmup')
     const slugs = Object.keys(siteMap.canonicalPageMap)
     const rawPageIds = Object.values(siteMap.canonicalPageMap)
 
@@ -35,7 +35,7 @@ export async function generateStaticParams() {
     await getNavigationLinkPages('build-warmup')
 
     // Warm up the disk cache for all canonical pages from Redis/Notion in chunks using raw page UUIDs
-    const concurrency = 15
+    const concurrency = 10
     const chunks: string[][] = []
     for (let i = 0; i < rawPageIds.length; i += concurrency) {
       chunks.push(rawPageIds.slice(i, i + concurrency))

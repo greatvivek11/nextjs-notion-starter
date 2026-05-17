@@ -52,6 +52,7 @@ class NotionCache {
 
   async getPage(pageId: string, source?: string): Promise<ExtendedRecordMap | null> {
     const now = Date.now()
+    const effectiveTTL = source === 'build-warmup' ? redisPageTTL : revalidateTTL
 
     // 1. Memory Check
     const cached = this.memoryCache.get(pageId)
@@ -60,7 +61,7 @@ class NotionCache {
     }
 
     // 2. Disk Check (Fallback for build-time or local dev)
-    const fsCached = await this.getFsCachedPage(pageId)
+    const fsCached = await this.getFsCachedPage(pageId, false, effectiveTTL, source === 'build-warmup')
     if (fsCached) {
       this.memoryCache.set(pageId, { data: fsCached, timestamp: now })
       return fsCached
@@ -74,8 +75,8 @@ class NotionCache {
           const decompressed = await gunzip(Buffer.from(compressed, 'base64'))
           const cachedData: CachedPage = JSON.parse(decompressed.toString())
 
-          // Check if Redis cache is older than the revalidate TTL (Soft Expiration)
-          if (now - cachedData.timestamp < revalidateTTL * 1000) {
+          // Check if Redis cache is older than effective TTL (Soft Expiration)
+          if (now - cachedData.timestamp < effectiveTTL * 1000) {
             console.log(`[Notion Redis HIT] Page: ${pageId}`)
             this.memoryCache.set(pageId, cachedData)
             return cachedData.data
@@ -114,12 +115,14 @@ class NotionCache {
 
   async getNavLinkPage(pageId: string, source = 'unknown'): Promise<ExtendedRecordMap | null> {
     const now = Date.now()
+    const effectiveTTL = source === 'build-warmup' ? redisNavTTL : revalidateTTL
+
     // 1. Memory Check
     const cached = this.navLinkCache.get(pageId)
     if (cached) return cached
 
     // 2. Disk Check
-    const fsCached = await this.getFsCachedPage(pageId, true)
+    const fsCached = await this.getFsCachedPage(pageId, true, effectiveTTL, source === 'build-warmup')
     if (fsCached) {
       this.navLinkCache.set(pageId, fsCached)
       return fsCached
@@ -133,8 +136,7 @@ class NotionCache {
           const decompressed = await gunzip(Buffer.from(compressed, 'base64'))
           const cachedData: CachedPage = JSON.parse(decompressed.toString())
 
-          // Respect revalidate TTL for navigation items too
-          if (now - cachedData.timestamp < revalidateTTL * 1000) {
+          if (now - cachedData.timestamp < effectiveTTL * 1000) {
             this.navLinkCache.set(pageId, cachedData.data)
             return cachedData.data
           }
@@ -168,19 +170,28 @@ class NotionCache {
 
   private async getFsCachedPage(
     pageId: string,
-    isNav = false
+    isNav = false,
+    effectiveTTL = revalidateTTL,
+    touchFile = false
   ): Promise<ExtendedRecordMap | null> {
     try {
       const fileName = isNav ? `nav-${pageId}.json` : `${pageId}.json`
       const cachePath = path.join(FS_CACHE_DIR, fileName)
       const stats = await fs.stat(cachePath)
 
-      // Respect revalidateTTL for disk cache (converted to milliseconds)
-      if (Date.now() - stats.mtimeMs > revalidateTTL * 1000) {
+      if (Date.now() - stats.mtimeMs > effectiveTTL * 1000) {
         return null
       }
 
       const data = await fs.readFile(cachePath, 'utf8')
+
+      // During warmup, touch the file to update mtime so rendering workers
+      // (which use a shorter TTL) will find it fresh.
+      if (touchFile) {
+        const now = new Date()
+        await fs.utimes(cachePath, now, now).catch(() => {})
+      }
+
       return JSON.parse(data)
     } catch (err) {
       return null
@@ -202,20 +213,20 @@ class NotionCache {
     }
   }
 
-  async getSitemap(cacheKey: string): Promise<Partial<types.SiteMap> | null> {
+  async getSitemap(cacheKey: string, source?: string): Promise<Partial<types.SiteMap> | null> {
     const now = Date.now()
+    const effectiveTTL = source === 'build-warmup' ? redisSitemapTTL : revalidateTTL
 
     // 1. Memory Check
     const cached = this.sitemapCache.get(cacheKey)
-    if (cached && now - cached.timestamp < revalidateTTL * 1000) {
+    if (cached && now - cached.timestamp < effectiveTTL * 1000) {
       return cached.data
     }
 
     // 2. Disk Check
     try {
       const stats = await fs.stat(SITEMAP_CACHE_FILE)
-      // Respect revalidateTTL for sitemap disk cache
-      if (now - stats.mtimeMs < revalidateTTL * 1000) {
+      if (now - stats.mtimeMs < effectiveTTL * 1000) {
         const data = await fs.readFile(SITEMAP_CACHE_FILE, 'utf8')
         const result = JSON.parse(data)
         this.sitemapCache.set(cacheKey, { data: result, timestamp: stats.mtimeMs })
@@ -233,7 +244,7 @@ class NotionCache {
           const decompressed = await gunzip(Buffer.from(compressed, 'base64'))
           const cachedData: CachedSitemap = JSON.parse(decompressed.toString())
 
-          if (now - cachedData.timestamp < revalidateTTL * 1000) {
+          if (now - cachedData.timestamp < effectiveTTL * 1000) {
             this.sitemapCache.set(cacheKey, cachedData)
             return cachedData.data
           }

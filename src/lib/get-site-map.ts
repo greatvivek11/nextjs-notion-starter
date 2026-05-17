@@ -7,10 +7,11 @@ import * as types from './types'
 
 const uuid = !!appConfig.includeNotionIdInUrls
 
-export async function getSiteMap(): Promise<types.SiteMap> {
+export async function getSiteMap(source?: string): Promise<types.SiteMap> {
   const partialSiteMap = await getAllPages(
     appConfig.rootNotionPageId,
-    appConfig.rootNotionSpaceId
+    appConfig.rootNotionSpaceId,
+    source
   )
 
   return {
@@ -21,12 +22,13 @@ export async function getSiteMap(): Promise<types.SiteMap> {
 
 const getAllPages = async (
   rootNotionPageId: string,
-  rootNotionSpaceId: string
+  rootNotionSpaceId: string,
+  source?: string
 ): Promise<Partial<types.SiteMap>> => {
   const cacheKey = JSON.stringify({ rootNotionPageId, rootNotionSpaceId })
   
   // 1. Check modular cache (Memory + Disk)
-  const cached = await notionCache.getSitemap(cacheKey)
+  const cached = await notionCache.getSitemap(cacheKey, source)
   if (cached) {
     console.log(`[Notion Sitemap] Cache HIT (Modular)`)
     return cached
