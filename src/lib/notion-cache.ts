@@ -45,7 +45,12 @@ class NotionCache {
   private navLinkCache = new Map<string, ExtendedRecordMap>()
   private sitemapCache = new Map<string, CachedSitemap>()
 
-  async getPage(pageId: string): Promise<ExtendedRecordMap | null> {
+  private shouldBypassRedis(source?: string): boolean {
+    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+    return isBuildPhase && source !== 'build-warmup' && source !== 'SiteMap'
+  }
+
+  async getPage(pageId: string, source?: string): Promise<ExtendedRecordMap | null> {
     const now = Date.now()
 
     // 1. Memory Check
@@ -54,8 +59,15 @@ class NotionCache {
       return cached.data
     }
 
-    // 2. Redis Check (Shared persistent cache)
-    if (redis) {
+    // 2. Disk Check (Fallback for build-time or local dev)
+    const fsCached = await this.getFsCachedPage(pageId)
+    if (fsCached) {
+      this.memoryCache.set(pageId, { data: fsCached, timestamp: now })
+      return fsCached
+    }
+
+    // 3. Redis Check (Shared persistent cache)
+    if (redis && !this.shouldBypassRedis(source)) {
       try {
         const compressed = await redis.get<string>(`page:${pageId}`)
         if (compressed) {
@@ -76,22 +88,15 @@ class NotionCache {
       }
     }
 
-    // 3. Disk Check (Fallback for build-time or local dev)
-    const fsCached = await this.getFsCachedPage(pageId)
-    if (fsCached) {
-      this.memoryCache.set(pageId, { data: fsCached, timestamp: now })
-      return fsCached
-    }
-
     return null
   }
 
-  async setPage(pageId: string, data: ExtendedRecordMap) {
+  async setPage(pageId: string, data: ExtendedRecordMap, source = 'unknown') {
     const timestamp = Date.now()
     this.memoryCache.set(pageId, { data, timestamp })
 
     // Save to Redis (compressed to save space)
-    if (redis) {
+    if (redis && !this.shouldBypassRedis(source)) {
       try {
         const cacheObj: CachedPage = { data, timestamp }
         const compressed = await gzip(JSON.stringify(cacheObj))
@@ -107,14 +112,21 @@ class NotionCache {
     await this.setFsCachedPage(pageId, data)
   }
 
-  async getNavLinkPage(pageId: string): Promise<ExtendedRecordMap | null> {
+  async getNavLinkPage(pageId: string, source = 'unknown'): Promise<ExtendedRecordMap | null> {
     const now = Date.now()
     // 1. Memory Check
     const cached = this.navLinkCache.get(pageId)
     if (cached) return cached
 
-    // 2. Redis Check
-    if (redis) {
+    // 2. Disk Check
+    const fsCached = await this.getFsCachedPage(pageId, true)
+    if (fsCached) {
+      this.navLinkCache.set(pageId, fsCached)
+      return fsCached
+    }
+
+    // 3. Redis Check
+    if (redis && !this.shouldBypassRedis(source)) {
       try {
         const compressed = await redis.get<string>(`nav:${pageId}`)
         if (compressed) {
@@ -132,21 +144,14 @@ class NotionCache {
       }
     }
 
-    // 3. Disk Check
-    const fsCached = await this.getFsCachedPage(pageId, true)
-    if (fsCached) {
-      this.navLinkCache.set(pageId, fsCached)
-      return fsCached
-    }
-
     return null
   }
 
-  async setNavLinkPage(pageId: string, data: ExtendedRecordMap) {
+  async setNavLinkPage(pageId: string, data: ExtendedRecordMap, source = 'unknown') {
     const timestamp = Date.now()
     this.navLinkCache.set(pageId, data)
 
-    if (redis) {
+    if (redis && !this.shouldBypassRedis(source)) {
       try {
         const cacheObj: CachedPage = { data, timestamp }
         const compressed = await gzip(JSON.stringify(cacheObj))
@@ -206,7 +211,21 @@ class NotionCache {
       return cached.data
     }
 
-    // 2. Redis Check
+    // 2. Disk Check
+    try {
+      const stats = await fs.stat(SITEMAP_CACHE_FILE)
+      // Respect revalidateTTL for sitemap disk cache
+      if (now - stats.mtimeMs < revalidateTTL * 1000) {
+        const data = await fs.readFile(SITEMAP_CACHE_FILE, 'utf8')
+        const result = JSON.parse(data)
+        this.sitemapCache.set(cacheKey, { data: result, timestamp: stats.mtimeMs })
+        return result
+      }
+    } catch (err) {
+      // Ignore
+    }
+
+    // 3. Redis Check
     if (redis) {
       try {
         const compressed = await redis.get<string>(`sitemap:${cacheKey}`)
@@ -222,20 +241,6 @@ class NotionCache {
       } catch (err) {
         // Ignore
       }
-    }
-
-    // 3. Disk Check
-    try {
-      const stats = await fs.stat(SITEMAP_CACHE_FILE)
-      // Respect revalidateTTL for sitemap disk cache
-      if (now - stats.mtimeMs < revalidateTTL * 1000) {
-        const data = await fs.readFile(SITEMAP_CACHE_FILE, 'utf8')
-        const result = JSON.parse(data)
-        this.sitemapCache.set(cacheKey, { data: result, timestamp: stats.mtimeMs })
-        return result
-      }
-    } catch (err) {
-      // Ignore
     }
 
     return null

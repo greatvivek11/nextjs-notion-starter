@@ -23,9 +23,15 @@ export async function generateMetadata({
 }
 
 export async function generateStaticParams() {
-  // We return an empty array to make all tag pages ISR (Incremental Static Regeneration).
-  // This prevents hitting Notion API rate limits for every tag during the build phase.
-  return []
+  try {
+    const tags = await getAllTags()
+    return tags.map((tagName) => ({
+      tagName: normalizeTitle(tagName)
+    }))
+  } catch (error) {
+    console.warn('failed to generate static tag params', error)
+    return []
+  }
 }
 
 export default async function NotionTagsPage({

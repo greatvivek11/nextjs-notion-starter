@@ -8,7 +8,7 @@ import { withRetry } from './notion-retry'
  * Fetches thin record maps for navigation link pages (used in custom nav styles).
  * Results are cached to avoid redundant fetches on every page load.
  */
-export async function getNavigationLinkPages(): Promise<ExtendedRecordMap[]> {
+export async function getNavigationLinkPages(source = 'unknown'): Promise<ExtendedRecordMap[]> {
   const navigationLinkPageIds = (navigationLinks || [])
     .map((link) => link?.pageId)
     .filter(Boolean)
@@ -17,20 +17,19 @@ export async function getNavigationLinkPages(): Promise<ExtendedRecordMap[]> {
 
   return Promise.all(
     navigationLinkPageIds.map(async (pageId) => {
-      const cached = await notionCache.getNavLinkPage(pageId)
+      const cached = await notionCache.getNavLinkPage(pageId, source)
       if (cached) return cached
 
       const recordMap = await withRetry(() =>
         notion.getPage(pageId, {
-          chunkLimit: 1,
-          fetchMissingBlocks: false,
-          fetchCollections: false,
           signFileUrls: true,
+          fetchCollections: false,
+          fetchMissingBlocks: false,
           concurrency: 1
         })
       )
 
-      await notionCache.setNavLinkPage(pageId, recordMap)
+      await notionCache.setNavLinkPage(pageId, recordMap, source)
       return recordMap
     })
   )

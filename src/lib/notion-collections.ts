@@ -25,18 +25,28 @@ function getEmbeddedViewIds(recordMap: ExtendedRecordMap, pageId: string): Set<s
   if (!rootBlock?.content) return null
 
   const viewIds = new Set<string>()
+  const visited = new Set<string>()
 
-  for (const blockId of rootBlock.content) {
+  function traverse(blockId: string) {
+    if (visited.has(blockId)) return
+    visited.add(blockId)
+
     const block = unwrap(recordMap.block[blockId])
-    if (!block) continue
+    if (!block) return
 
     if (block.type === 'collection_view' || block.type === 'collection_view_page') {
       const ids: string[] = block.view_ids || []
       ids.forEach((vid: string) => viewIds.add(vid))
     }
+
+    if (block.content && Array.isArray(block.content)) {
+      block.content.forEach(traverse)
+    }
   }
 
-  return viewIds
+  rootBlock.content.forEach(traverse)
+
+  return viewIds.size > 0 ? viewIds : null
 }
 
 /**

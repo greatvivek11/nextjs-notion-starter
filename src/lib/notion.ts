@@ -29,13 +29,23 @@ const pendingPages = new Map<string, Promise<ExtendedRecordMap>>()
  */
 export async function getPage(pageId: string, source = 'unknown'): Promise<ExtendedRecordMap> {
   // Cache check
-  let recordMap = await notionCache.getPage(pageId)
+  let recordMap = await notionCache.getPage(pageId, source)
 
   if (recordMap) {
     const collections = Object.keys(recordMap.collection || {}).length
     const views = Object.keys(recordMap.collection_view || {}).length
 
-    if (collections > 0 && views === 0) {
+    // Check if the page legitimately contains collection_view blocks.
+    // If it does, we expect views to be populated in a full fetch.
+    // If it doesn't, views being 0 is normal and should NOT force a re-fetch.
+    const hasCollectionViewBlocks = Object.values(recordMap.block || {}).some(
+      (block: any) => {
+        const type = block?.value?.value?.type || block?.value?.type || block?.type
+        return type === 'collection_view' || type === 'collection_view_page'
+      }
+    )
+
+    if (hasCollectionViewBlocks && views === 0) {
       // Thin cache (missing view data) — force re-fetch
       console.log(`[Notion Cache] Page: ${pageId} has collections but 0 views. Re-fetching.`)
       recordMap = null as any
@@ -73,11 +83,11 @@ export async function getPage(pageId: string, source = 'unknown'): Promise<Exten
       recordMap = await fetchLinkedCollections(recordMap, pageId)
 
       // Persist to cache (unfiltered — filters are dynamic and applied per-request)
-      await notionCache.setPage(pageId, recordMap)
+      await notionCache.setPage(pageId, recordMap, source)
 
       // Merge navigation link pages (custom nav style only)
       if (navigationStyle !== 'default') {
-        const navMaps = await getNavigationLinkPages()
+        const navMaps = await getNavigationLinkPages(source)
         if (navMaps?.length) {
           recordMap = navMaps.reduce((map, navMap) => {
             const navPageId = Object.keys(navMap.block || {})[0]
