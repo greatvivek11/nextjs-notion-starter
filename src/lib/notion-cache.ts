@@ -1,4 +1,4 @@
-import { promises as fs } from 'fs'
+import fsSync, { promises as fs } from 'fs'
 import path from 'path'
 import zlib from 'zlib'
 import { promisify } from 'util'
@@ -46,7 +46,10 @@ class NotionCache {
   private sitemapCache = new Map<string, CachedSitemap>()
 
   private shouldBypassRedis(source?: string): boolean {
-    const isBuildPhase = process.env.NEXT_PHASE === 'phase-production-build'
+    const isBuildPhase =
+      process.env.NEXT_PHASE === 'phase-production-build' ||
+      fsSync.existsSync(path.join(FS_CACHE_DIR, '.build-phase'))
+
     return isBuildPhase && source !== 'build-warmup' && source !== 'SiteMap'
   }
 
@@ -189,7 +192,9 @@ class NotionCache {
       // (which use a shorter TTL) will find it fresh.
       if (touchFile) {
         const now = new Date()
-        await fs.utimes(cachePath, now, now).catch(() => {})
+        await fs.utimes(cachePath, now, now).catch(() => {
+          // Ignore utimes failure
+        })
       }
 
       return JSON.parse(data)
@@ -286,6 +291,16 @@ class NotionCache {
     this.memoryCache.clear()
     this.navLinkCache.clear()
     this.sitemapCache.clear()
+  }
+
+  async setBuildPhaseMarker() {
+    try {
+      await fs.mkdir(FS_CACHE_DIR, { recursive: true })
+      await fs.writeFile(path.join(FS_CACHE_DIR, '.build-phase'), 'true', 'utf8')
+      console.log(`[Notion Cache] Set build phase marker file.`)
+    } catch (err) {
+      // Ignore
+    }
   }
 }
 

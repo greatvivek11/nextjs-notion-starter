@@ -4,6 +4,7 @@ import { buildPageMetadata } from '@/lib/metadata-builder'
 import { resolvePageModel } from '@/lib/page-model'
 import { getAllTags, resolveTagPage } from '@/lib/tag-service'
 import { normalizeTitle } from 'notion-utils'
+import { notionCache } from '@/lib/notion-cache'
 
 export const revalidate = 3600
 
@@ -24,6 +25,7 @@ export async function generateMetadata({
 
 export async function generateStaticParams() {
   try {
+    await notionCache.setBuildPhaseMarker()
     const tags = await getAllTags()
     return tags.map((tagName) => ({
       tagName: normalizeTitle(tagName)

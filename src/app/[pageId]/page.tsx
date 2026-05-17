@@ -6,6 +6,7 @@ import { resolvePageModel } from '@/lib/page-model'
 import { resolveNotionPage } from '@/lib/resolve-notion-page'
 import { getPage } from '@/lib/notion'
 import { getNavigationLinkPages } from '@/lib/notion-navigation'
+import { notionCache } from '@/lib/notion-cache'
 
 export const revalidate = 3600
 
@@ -26,6 +27,7 @@ export async function generateMetadata({
 
 export async function generateStaticParams() {
   try {
+    await notionCache.setBuildPhaseMarker()
     const siteMap = await getSiteMap('build-warmup')
     const slugs = Object.keys(siteMap.canonicalPageMap)
     const rawPageIds = Object.values(siteMap.canonicalPageMap)
