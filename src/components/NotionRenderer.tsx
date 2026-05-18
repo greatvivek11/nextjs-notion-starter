@@ -4,7 +4,7 @@ import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
 import type { ExtendedRecordMap } from 'notion-types'
-import { formatDate, normalizeTitle } from 'notion-utils'
+import { formatDate, normalizeTitle, parsePageId } from 'notion-utils'
 import * as React from 'react'
 import {
   Header,
@@ -262,6 +262,47 @@ const NotionPageHeader: React.FC<{
 }
 
 // -----------------------------------------------------------------------------
+// Custom Link Component for Inline Text Links
+// -----------------------------------------------------------------------------
+
+const CustomLink: React.FC<{
+  href?: string
+  target?: string
+  rel?: string
+  className?: string
+  children?: React.ReactNode
+  [key: string]: unknown
+}> = ({ href, target, rel, className, children, ...rest }) => {
+  if (href && (href.includes('notion.site') || href.includes('notion.so'))) {
+    try {
+      const url = new URL(href)
+      const pageId = parsePageId(url.pathname, { uuid: false })
+      if (pageId) {
+        return (
+          <Link href={`/${pageId}${url.hash}`} className={className} {...rest}>
+            {children}
+          </Link>
+        )
+      }
+    } catch (e) {
+      // Ignore invalid URL errors and fall through to default external link
+    }
+  }
+
+  return (
+    <a
+      href={href}
+      target={target ?? '_blank'}
+      rel={rel ?? 'noopener noreferrer'}
+      className={className}
+      {...rest}
+    >
+      {children}
+    </a>
+  )
+}
+
+// -----------------------------------------------------------------------------
 // The Adapter Component
 // -----------------------------------------------------------------------------
 
@@ -323,6 +364,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({
         )
       },
       nextLink: Link,
+      Link: CustomLink,
       Code,
       Pdf: CustomPdf,
       Collection,
