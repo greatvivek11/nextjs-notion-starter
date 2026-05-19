@@ -611,3 +611,11 @@
     overflow-x: clip;
   }
 }
+
+.notion-pdf,
+.notion-asset-wrapper-pdf,
+.notion-asset-wrapper-pdf > div {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+}

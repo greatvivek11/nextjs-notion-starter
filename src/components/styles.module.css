@@ -125,3 +125,103 @@
 :global(.dark-mode) .shiki-loading {
   background: #24292e;
 }
+
+.pdfContainer {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1.5em 0;
+  background: #ffffff;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  width: 100%;
+}
+
+:global(.dark-mode) .pdfContainer {
+  border-color: rgba(255, 255, 255, 0.1);
+  background: #18181c;
+}
+
+.pdfToolbar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  background: #f9f9f9;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+  z-index: 10;
+}
+
+:global(.dark-mode) .pdfToolbar {
+  background: #1c1c1e;
+  border-bottom-color: rgba(255, 255, 255, 0.1);
+}
+
+.pdfZoomBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  color: #333333;
+  border-radius: 6px;
+  padding: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+:global(.dark-mode) .pdfZoomBtn {
+  background: #2c2c2e;
+  border-color: rgba(255, 255, 255, 0.15);
+  color: #e5e5ea;
+}
+
+.pdfZoomBtn:hover {
+  background: #f0f0f0;
+  border-color: rgba(0, 0, 0, 0.3);
+}
+
+:global(.dark-mode) .pdfZoomBtn:hover {
+  background: #3a3a3c;
+}
+
+.pdfZoomValue {
+  font-size: 14px;
+  font-weight: 500;
+  min-width: 50px;
+  text-align: center;
+  user-select: none;
+  color: #333333;
+}
+
+:global(.dark-mode) .pdfZoomValue {
+  color: #e5e5ea;
+}
+
+.pdfDocumentWrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 20px;
+  overflow-x: auto;
+  background: #f5f5f7;
+  min-height: 200px;
+}
+
+:global(.dark-mode) .pdfDocumentWrapper {
+  background: #121214;
+}
+
+/* Ensure each page inside the document is centered and has a shadow */
+.pdfDocumentWrapper :global(.react-pdf__Page) {
+  margin-bottom: 20px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+:global(.dark-mode) .pdfDocumentWrapper :global(.react-pdf__Page) {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
+}
