@@ -9,6 +9,9 @@ import { getNavigationLinkPages } from '@/lib/notion-navigation'
 import { notionCache } from '@/lib/notion-cache'
 
 export const revalidate = 3600
+// Give cold/uncached Notion pages enough headroom to complete their retry budget
+// (see notionMaxRetryBudget in lib/config.ts) instead of being killed mid-request.
+export const maxDuration = 45
 
 export async function generateMetadata({
   params
