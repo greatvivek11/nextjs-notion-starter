@@ -4,10 +4,18 @@ class NotionRateLimiter {
   private activeRequests = 0
   private requestQueue: (() => void)[] = []
 
-  async execute<T>(fn: () => Promise<T>): Promise<T> {
+  async execute<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
+    signal?.throwIfAborted()
     return new Promise((resolve, reject) => {
-      this.requestQueue.push(async () => {
+      const cancel = () => {
+        const index = this.requestQueue.indexOf(run)
+        if (index >= 0) this.requestQueue.splice(index, 1)
+        reject(signal.reason)
+      }
+      const run = async () => {
+        signal?.removeEventListener('abort', cancel)
         try {
+          signal?.throwIfAborted()
           const result = await fn()
           resolve(result)
         } catch (err) {
@@ -16,7 +24,9 @@ class NotionRateLimiter {
           this.activeRequests--
           this.processQueue()
         }
-      })
+      }
+      signal?.addEventListener('abort', cancel, { once: true })
+      this.requestQueue.push(run)
       this.processQueue()
     })
   }

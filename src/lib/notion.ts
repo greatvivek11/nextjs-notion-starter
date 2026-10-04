@@ -66,12 +66,13 @@ export async function getPage(pageId: string, source = 'unknown'): Promise<Exten
   const fetchPromise = (async () => {
     try {
       console.log(`[Notion] Cache MISS for page: ${pageId} (source: ${source}). Fetching...`)
-      recordMap = await withRetry(() =>
+      recordMap = await withRetry((signal) =>
         notion.getPage(pageId, {
           signFileUrls: false,
           fetchCollections: true,
           fetchMissingBlocks: true,
-          concurrency: 1
+          concurrency: 1,
+          ofetchOptions: { signal }
         })
       )
 
