@@ -19,6 +19,17 @@ const gunzip = promisify(zlib.gunzip)
 
 const FS_CACHE_DIR = path.join(process.cwd(), notionCacheDir)
 const SITEMAP_CACHE_FILE = path.join(FS_CACHE_DIR, 'sitemap-cache.json')
+const NOTION_PAGE_ID_PATTERN =
+  /^(?:[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i
+
+function getPageCachePath(pageId: string, isNav: boolean) {
+  if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
+    throw new Error('Invalid Notion page ID for filesystem cache.')
+  }
+
+  const fileName = `${isNav ? 'nav-' : ''}${pageId}.json`
+  return path.join(FS_CACHE_DIR, fileName)
+}
 
 // Upstash Redis configuration (Vercel connector provides these)
 const redis =
@@ -58,6 +69,10 @@ class NotionCache {
   }
 
   async getPage(pageId: string, source?: string): Promise<ExtendedRecordMap | null> {
+    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
+      throw new Error('Invalid Notion page ID for cache lookup.')
+    }
+
     const now = Date.now()
     const effectiveTTL = (source === 'build-warmup' || this.isBuildPhase) ? redisPageTTL : revalidateTTL
 
@@ -84,16 +99,16 @@ class NotionCache {
 
           // Check if Redis cache is older than effective TTL (Soft Expiration)
           if (now - cachedData.timestamp < effectiveTTL * 1000) {
-            console.log(`[Notion Redis HIT] Page: ${pageId}`)
+            console.log('Notion Redis cache hit', { pageId })
             this.memoryCache.set(pageId, cachedData)
             await this.setFsCachedPage(pageId, cachedData.data, false)
             return cachedData.data
           } else {
-            console.log(`[Notion Redis STALE] Page: ${pageId} - Triggering refresh`)
+            console.log('Notion Redis cache stale; refreshing', { pageId })
           }
         }
       } catch (err) {
-        console.error(`[Notion Redis Error] GET page:${pageId}`, err)
+        console.error('Notion Redis GET failed', { pageId, error: err })
       }
     }
 
@@ -101,6 +116,10 @@ class NotionCache {
   }
 
   async setPage(pageId: string, data: ExtendedRecordMap, source = 'unknown') {
+    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
+      throw new Error('Invalid Notion page ID for cache update.')
+    }
+
     const timestamp = Date.now()
     this.memoryCache.set(pageId, { data, timestamp })
 
@@ -112,9 +131,9 @@ class NotionCache {
         await redis.set(`page:${pageId}`, compressed.toString('base64'), {
           ex: redisPageTTL
         })
-        console.log(`[Notion Redis SET] Page: ${pageId}`)
+        console.log('Notion Redis cache set', { pageId })
       } catch (err) {
-        console.error(`[Notion Redis Error] SET page:${pageId}`, err)
+        console.error('Notion Redis SET failed', { pageId, error: err })
       }
     }
 
@@ -122,6 +141,10 @@ class NotionCache {
   }
 
   async getNavLinkPage(pageId: string, source = 'unknown'): Promise<ExtendedRecordMap | null> {
+    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
+      throw new Error('Invalid Notion page ID for cache lookup.')
+    }
+
     const now = Date.now()
     const effectiveTTL = source === 'build-warmup' ? redisNavTTL : revalidateTTL
 
@@ -159,6 +182,10 @@ class NotionCache {
   }
 
   async setNavLinkPage(pageId: string, data: ExtendedRecordMap, source = 'unknown') {
+    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
+      throw new Error('Invalid Notion page ID for cache update.')
+    }
+
     const timestamp = Date.now()
     this.navLinkCache.set(pageId, data)
 
@@ -183,9 +210,8 @@ class NotionCache {
     effectiveTTL = revalidateTTL,
     touchFile = false
   ): Promise<ExtendedRecordMap | null> {
+    const cachePath = getPageCachePath(pageId, isNav)
     try {
-      const fileName = isNav ? `nav-${pageId}.json` : `${pageId}.json`
-      const cachePath = path.join(FS_CACHE_DIR, fileName)
       const stats = await fs.stat(cachePath)
 
       if (Date.now() - stats.mtimeMs > effectiveTTL * 1000) {
@@ -214,10 +240,9 @@ class NotionCache {
     data: ExtendedRecordMap,
     isNav = false
   ) {
+    const cachePath = getPageCachePath(pageId, isNav)
     try {
       await fs.mkdir(FS_CACHE_DIR, { recursive: true })
-      const fileName = isNav ? `nav-${pageId}.json` : `${pageId}.json`
-      const cachePath = path.join(FS_CACHE_DIR, fileName)
       await fs.writeFile(cachePath, JSON.stringify(data), 'utf8')
     } catch (err) {
       // Ignore cache write failures
