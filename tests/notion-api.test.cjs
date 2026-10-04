@@ -1,26 +1,7 @@
 const assert = require('node:assert/strict')
-const fs = require('node:fs')
 const http = require('node:http')
-const path = require('node:path')
-const Module = require('node:module')
 const { test } = require('node:test')
-const ts = require('typescript')
-
-// Load the real TypeScript modules without importing unrelated site configuration.
-function loadModule(name, dependencies) {
-  const filename = path.resolve(__dirname, '../src/lib', `${name}.ts`)
-  const loaded = new Module(filename, module)
-  loaded.filename = filename
-  loaded.require = (name) =>
-    Object.hasOwn(dependencies, name) ? dependencies[name] : require(name)
-  loaded._compile(
-    ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-      compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 }
-    }).outputText,
-    filename
-  )
-  return loaded.exports
-}
+const { loadModule } = require('./load-module.cjs')
 
 const config = {
   notionMaxConcurrency: 1,
@@ -54,20 +35,32 @@ function fetchError(status, retryAfter) {
 
 test('returns successful results', async () => {
   const { withRetry } = createRetry()
-  assert.equal(await withRetry(async (signal) => {
-    assert.equal(signal.aborted, false)
-    return 'page'
-  }), 'page')
+  assert.equal(
+    await withRetry(async (signal) => {
+      assert.equal(signal.aborted, false)
+      return 'page'
+    }),
+    'page'
+  )
 })
 
 test('does not retry permanent HTTP errors or programming errors', async () => {
   const { withRetry } = createRetry()
-  for (const error of [fetchError(400), fetchError(401), fetchError(403), fetchError(404), new TypeError('bug')]) {
+  for (const error of [
+    fetchError(400),
+    fetchError(401),
+    fetchError(403),
+    fetchError(404),
+    new TypeError('bug')
+  ]) {
     let calls = 0
-    await assert.rejects(withRetry(async () => {
-      calls++
-      throw error
-    }), (actual) => actual === error)
+    await assert.rejects(
+      withRetry(async () => {
+        calls++
+        throw error
+      }),
+      (actual) => actual === error
+    )
     assert.equal(calls, 1)
   }
 })
@@ -78,10 +71,13 @@ test('retries 429, server failures, and network errors', async () => {
   networkError.name = 'FetchError'
   for (const error of [fetchError(429, '0'), fetchError(503), networkError]) {
     let calls = 0
-    assert.equal(await withRetry(async () => {
-      if (++calls === 1) throw error
-      return 'page'
-    }), 'page')
+    assert.equal(
+      await withRetry(async () => {
+        if (++calls === 1) throw error
+        return 'page'
+      }),
+      'page'
+    )
     assert.equal(calls, 2)
   }
 })
@@ -91,10 +87,13 @@ test('does not shorten Retry-After when it exceeds the remaining budget', async 
   for (const value of ['60', new Date(Date.now() + 60000).toUTCString()]) {
     let calls = 0
     const error = fetchError(429, value)
-    await assert.rejects(withRetry(async () => {
-      calls++
-      throw error
-    }), (actual) => actual === error)
+    await assert.rejects(
+      withRetry(async () => {
+        calls++
+        throw error
+      }),
+      (actual) => actual === error
+    )
     assert.equal(calls, 1)
   }
 })
@@ -103,10 +102,13 @@ test('honors a Retry-After longer than the normal backoff cap', async () => {
   const { withRetry } = createRetry()
   const started = Date.now()
   let calls = 0
-  assert.equal(await withRetry(async () => {
-    if (++calls === 1) throw fetchError(429, '0.015')
-    return 'page'
-  }), 'page')
+  assert.equal(
+    await withRetry(async () => {
+      if (++calls === 1) throw fetchError(429, '0.015')
+      return 'page'
+    }),
+    'page'
+  )
   assert.equal(calls, 2)
   assert.ok(Date.now() - started >= 15)
 })
@@ -114,13 +116,23 @@ test('honors a Retry-After longer than the normal backoff cap', async () => {
 test('enforces attempt limits and rejects invalid retry settings', async () => {
   const { withRetry } = createRetry()
   let calls = 0
-  await assert.rejects(withRetry(async () => {
-    calls++
-    throw fetchError(503)
-  }, 2))
+  await assert.rejects(
+    withRetry(async () => {
+      calls++
+      throw fetchError(503)
+    }, 2)
+  )
   assert.equal(calls, 2)
-  for (const [retries, delay] of [[0, 1], [1.5, 1], [1, -1], [1, NaN]]) {
-    await assert.rejects(withRetry(async () => 'page', retries, delay), RangeError)
+  for (const [retries, delay] of [
+    [0, 1],
+    [1.5, 1],
+    [1, -1],
+    [1, NaN]
+  ]) {
+    await assert.rejects(
+      withRetry(async () => 'page', retries, delay),
+      RangeError
+    )
   }
 })
 
@@ -128,12 +140,17 @@ test('aborts an in-flight operation at the overall deadline', async () => {
   const { withRetry } = createRetry()
   const started = Date.now()
   let calls = 0
-  await assert.rejects(withRetry((signal) => {
-    calls++
-    return new Promise((resolve, reject) => {
-      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
-    })
-  }), { name: 'TimeoutError' })
+  await assert.rejects(
+    withRetry((signal) => {
+      calls++
+      return new Promise((resolve, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), {
+          once: true
+        })
+      })
+    }),
+    { name: 'TimeoutError' }
+  )
   assert.equal(calls, 1)
   assert.ok(Date.now() - started < config.notionMaxRetryBudget + 200)
 })
@@ -141,9 +158,19 @@ test('aborts an in-flight operation at the overall deadline', async () => {
 test('removes expired queued operations without consuming a slot', async () => {
   const { withRetry, notionRateLimiter } = createRetry()
   let release
-  const blocker = notionRateLimiter.execute(() => new Promise((resolve) => { release = resolve }))
+  const blocker = notionRateLimiter.execute(
+    () =>
+      new Promise((resolve) => {
+        release = resolve
+      })
+  )
   let calls = 0
-  await assert.rejects(withRetry(async () => { calls++ }), { name: 'TimeoutError' })
+  await assert.rejects(
+    withRetry(async () => {
+      calls++
+    }),
+    { name: 'TimeoutError' }
+  )
   assert.equal(calls, 0)
   release()
   await blocker
@@ -166,7 +193,10 @@ test('all HTTP endpoints use the application User-Agent and honor request and ca
   const { NotionAPI } = require('notion-client')
   class LocalNotionAPI extends NotionAPI {
     constructor(options) {
-      super({ ...options, apiBaseUrl: `http://127.0.0.1:${server.address().port}` })
+      super({
+        ...options,
+        apiBaseUrl: `http://127.0.0.1:${server.address().port}`
+      })
     }
   }
   const { notion } = loadModule('notion-api', {
@@ -183,9 +213,11 @@ test('all HTTP endpoints use the application User-Agent and honor request and ca
     started = Date.now()
     const timer = setTimeout(() => controller.abort(), 5)
     try {
-      await assert.rejects(notion.getCollectionData('collection', 'view', undefined, {
-        ofetchOptions: { signal: controller.signal }
-      }))
+      await assert.rejects(
+        notion.getCollectionData('collection', 'view', undefined, {
+          ofetchOptions: { signal: controller.signal }
+        })
+      )
       assert.equal(controller.signal.aborted, true)
       assert.ok(Date.now() - started < 200)
     } finally {
@@ -206,7 +238,9 @@ test('merges the recordMap and reducer results from a linked collection response
       viewBlock: { value: { type: 'collection_view', view_ids: ['view'] } }
     },
     collection: {},
-    collection_view: { view: { value: { format: { collection_pointer: { id: 'collection' } } } } },
+    collection_view: {
+      view: { value: { format: { collection_pointer: { id: 'collection' } } } }
+    },
     notion_user: {},
     collection_query: {},
     signed_urls: {}
@@ -217,11 +251,19 @@ test('merges the recordMap and reducer results from a linked collection response
       assert.equal(vid, 'view')
       assert.ok(options.ofetchOptions.signal instanceof AbortSignal)
       return {
-        recordMap: { block: { article: { value: { id: 'article', type: 'page' } } } },
-        result: { reducerResults: { collection_group_results: { blockIds: ['article'] } } }
+        recordMap: {
+          block: { article: { value: { id: 'article', type: 'page' } } }
+        },
+        result: {
+          reducerResults: {
+            collection_group_results: { blockIds: ['article'] }
+          }
+        }
       }
     },
-    async getBlocks() { return { recordMap: { block: {} } } }
+    async getBlocks() {
+      return { recordMap: { block: {} } }
+    }
   }
   const { withRetry } = createRetry()
   const { fetchLinkedCollections } = loadModule('notion-collections', {
@@ -231,5 +273,8 @@ test('merges the recordMap and reducer results from a linked collection response
   })
   const result = await fetchLinkedCollections(map, 'page')
   assert.ok(result.block.article)
-  assert.deepEqual(result.collection_query.collection.view.collection_group_results.blockIds, ['article'])
+  assert.deepEqual(
+    result.collection_query.collection.view.collection_group_results.blockIds,
+    ['article']
+  )
 })

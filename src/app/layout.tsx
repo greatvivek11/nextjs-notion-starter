@@ -1,5 +1,6 @@
-import { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import Script from 'next/script'
+import localFont from 'next/font/local'
 // global styles shared across the entire site
 // used for rendering equations (optional)
 import 'katex/dist/katex.min.css'
@@ -17,13 +18,37 @@ import '@/styles/notion-mobile.css'
 
 import { appConfig } from '@/lib/config'
 
+const inter = localFont({
+  src: [
+    {
+      path: '../../public/fonts/Inter-Regular.ttf',
+      weight: '400',
+      style: 'normal'
+    },
+    {
+      path: '../../public/fonts/Inter-SemiBold.ttf',
+      weight: '600',
+      style: 'normal'
+    }
+  ],
+  display: 'swap',
+  variable: '--font-sans'
+})
+
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f9fafb' },
+    { media: '(prefers-color-scheme: dark)', color: '#11151d' }
+  ]
+}
+
 export const metadata: Metadata = {
   metadataBase: new URL(appConfig.host),
   alternates: {
-    canonical: '/',
-    languages: {
-      'en-US': '/en-US'
-    }
+    canonical: '/'
   },
   title: appConfig.name,
   description: appConfig.description,
@@ -57,7 +82,7 @@ export default function RootLayout({
       <head>
         <Script src='/theme.js' strategy='beforeInteractive' />
       </head>
-      <body>{children}</body>
+      <body className={inter.variable}>{children}</body>
     </html>
   )
 }

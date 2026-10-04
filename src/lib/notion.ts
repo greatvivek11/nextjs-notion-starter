@@ -27,7 +27,12 @@ const pendingPages = new Map<string, Promise<ExtendedRecordMap>>()
  * 2. In-flight deduplication → join pending promise
  * 3. Fresh fetch → linked collection enrichment → cache → nav merge → filters → return
  */
-export async function getPage(pageId: string, source = 'unknown'): Promise<ExtendedRecordMap> {
+export async function getPage(
+  pageId: string,
+  source = 'unknown'
+): Promise<ExtendedRecordMap> {
+  pageId = parsePageId(pageId, { uuid: true })
+  if (!pageId) throw new Error('Invalid Notion page ID.')
   // Cache check
   let recordMap = await notionCache.getPage(pageId, source)
 
@@ -40,19 +45,23 @@ export async function getPage(pageId: string, source = 'unknown'): Promise<Exten
     // If it doesn't, views being 0 is normal and should NOT force a re-fetch.
     const hasCollectionViewBlocks = Object.values(recordMap.block || {}).some(
       (block: any) => {
-        const type = block?.value?.value?.type || block?.value?.type || block?.type
+        const type =
+          block?.value?.value?.type || block?.value?.type || block?.type
         return type === 'collection_view' || type === 'collection_view_page'
       }
     )
 
     if (hasCollectionViewBlocks && views === 0) {
       // Thin cache (missing view data) — force re-fetch
-      console.log(`[Notion Cache] Page: ${pageId} has collections but 0 views. Re-fetching.`)
-      recordMap = null as any
+      console.log(
+        `[Notion Cache] Page: ${pageId} has collections but 0 views. Re-fetching.`
+      )
+      recordMap = null
     } else {
-      console.log(`[Notion FS HIT] Page: ${pageId}. Collections: ${collections}, Views: ${views}`)
-      applyFormatPropertyFilters(recordMap)
-      return recordMap
+      console.log(
+        `[Notion FS HIT] Page: ${pageId}. Collections: ${collections}, Views: ${views}`
+      )
+      return preparePage(recordMap, pageId, source)
     }
   }
 
@@ -60,12 +69,14 @@ export async function getPage(pageId: string, source = 'unknown'): Promise<Exten
   const pending = pendingPages.get(pageId)
   if (pending) {
     console.log(`[Notion] Joining pending request for page: ${pageId}`)
-    return pending
+    return preparePage(structuredClone(await pending), pageId, source)
   }
 
   const fetchPromise = (async () => {
     try {
-      console.log(`[Notion] Cache MISS for page: ${pageId} (source: ${source}). Fetching...`)
+      console.log(
+        `[Notion] Cache MISS for page: ${pageId} (source: ${source}). Fetching...`
+      )
       recordMap = await withRetry((signal) =>
         notion.getPage(pageId, {
           signFileUrls: false,
@@ -78,28 +89,15 @@ export async function getPage(pageId: string, source = 'unknown'): Promise<Exten
 
       const collections = Object.keys(recordMap.collection || {}).length
       const views = Object.keys(recordMap.collection_view || {}).length
-      console.log(`[Notion Fetch] Page: ${pageId}. Collections: ${collections}, Views: ${views}`)
+      console.log(
+        `[Notion Fetch] Page: ${pageId}. Collections: ${collections}, Views: ${views}`
+      )
 
       // Enrich with linked collection data (scoped to views embedded on this page)
       recordMap = await fetchLinkedCollections(recordMap, pageId)
 
       // Persist to cache (unfiltered — filters are dynamic and applied per-request)
       await notionCache.setPage(pageId, recordMap, source)
-
-      // Merge navigation link pages (custom nav style only)
-      if (navigationStyle !== 'default') {
-        const navMaps = await getNavigationLinkPages(source)
-        if (navMaps?.length) {
-          recordMap = navMaps.reduce((map, navMap) => {
-            const navPageId = Object.keys(navMap.block || {})[0]
-            if (!navPageId) return map
-            return navPageId === pageId ? map : mergeRecordMaps(map, navMap)
-          }, recordMap)
-        }
-      }
-
-      // Apply view filters (always last — filters depend on current date for relative ranges)
-      applyFormatPropertyFilters(recordMap)
 
       return recordMap
     } finally {
@@ -108,7 +106,25 @@ export async function getPage(pageId: string, source = 'unknown'): Promise<Exten
   })()
 
   pendingPages.set(pageId, fetchPromise)
-  return fetchPromise
+  return preparePage(structuredClone(await fetchPromise), pageId, source)
+}
+
+async function preparePage(
+  recordMap: ExtendedRecordMap,
+  pageId: string,
+  source: string
+) {
+  if (navigationStyle !== 'default') {
+    const navMaps = await getNavigationLinkPages(source)
+    for (const navMap of navMaps) {
+      const navPageId = Object.keys(navMap.block || {})[0]
+      if (navPageId && parsePageId(navPageId, { uuid: true }) !== pageId) {
+        recordMap = mergeRecordMaps(recordMap, navMap)
+      }
+    }
+  }
+  applyFormatPropertyFilters(recordMap)
+  return recordMap
 }
 
 export async function search(params: SearchParams): Promise<SearchResults> {
@@ -127,34 +143,41 @@ export async function search(params: SearchParams): Promise<SearchResults> {
     }
   }
 
-  const results = await notion.search(searchPayload as any)
+  const results = await withRetry((signal) =>
+    notion.search(searchPayload as SearchParams, { signal })
+  )
 
   // Notion search API doesn't always return the blocks in recordMap anymore.
   // We need to fetch any missing blocks manually so react-notion-x can render the results.
   const resultIds = (results.results || []).map((r: any) => r.id)
-  
+
   if (!results.recordMap) {
     results.recordMap = { block: {} } as any
   } else if (!results.recordMap.block) {
     results.recordMap.block = {}
   }
 
-  const missingBlockIds = resultIds.filter((id: string) => !results.recordMap.block[id])
+  const missingBlockIds = resultIds.filter(
+    (id: string) => !results.recordMap.block[id]
+  )
 
   if (missingBlockIds.length > 0) {
     try {
-      const { recordMap } = await notion.getBlocks(missingBlockIds)
+      const { recordMap } = await withRetry((signal) =>
+        notion.getBlocks(missingBlockIds, { signal })
+      )
       if (recordMap?.block) {
         Object.assign(results.recordMap.block, recordMap.block)
       }
     } catch (err) {
-      // Silently fail if fetching blocks fails; react-notion-x will just filter them out
+      console.error('[Notion Search] Failed to hydrate search results', err)
+      throw err
     }
   }
 
   // Double-wrapping fix:
-  // Sometimes Notion's search API returns blocks where 'block[id].value' contains 
-  // another 'value' property that actually holds the block data. 
+  // Sometimes Notion's search API returns blocks where 'block[id].value' contains
+  // another 'value' property that actually holds the block data.
   // react-notion-x only looks at 'block[id].value', so we must unwrap if necessary.
   if (results.recordMap?.block) {
     for (const blockId of Object.keys(results.recordMap.block)) {

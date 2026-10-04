@@ -17,6 +17,7 @@ import { Block, CodeBlock } from 'notion-types'
 import { CustomLink } from './CustomLink'
 import { CustomPdf } from './CustomPdf'
 import { NotionPageHeader } from './NotionPageHeader'
+import { ShikiCode } from './ShikiCode'
 import {
   propertyLastEditedTimeValue,
   propertyDateValue,
@@ -27,18 +28,6 @@ import {
 // -----------------------------------------------------------------------------
 // dynamic imports for third-party components
 // -----------------------------------------------------------------------------
-
-const ShikiCode = dynamic(
-  () => import('./ShikiCode').then((m) => m.ShikiCode),
-  {
-    ssr: false,
-    loading: () => (
-      <pre className='shiki-loading'>
-        <code>{''}</code>
-      </pre>
-    )
-  }
-)
 
 const Mermaid = dynamic(() => import('./Mermaid').then((m) => m.Mermaid), {
   ssr: false
@@ -92,6 +81,8 @@ export interface NotionRendererProps {
   recordMap: ExtendedRecordMap
   isDarkMode: boolean
   isLiteMode?: boolean
+  isBlogPost?: boolean
+  tagsPage?: boolean
   rootPageId?: string
   rootDomain?: string
   pageTitle?: string
@@ -110,6 +101,8 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({
   recordMap,
   isDarkMode,
   isLiteMode = false,
+  isBlogPost = false,
+  tagsPage = false,
   rootPageId = appConfig.rootNotionPageId,
   rootDomain = appConfig.domain,
   pageTitle,
@@ -134,15 +127,9 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({
       }) => {
         // Notion cover images use a specific query param or className.
         // We ensure they get 'priority' for LCP performance.
-        const isCover =
-          props.src?.includes('table=block') ||
-          props.className?.includes('notion-page-cover')
+        const isCover = props.className?.includes('notion-page-cover')
         return (
-          <Image
-            {...props}
-            alt={alt ?? ''}
-            priority={priority || isCover}
-          />
+          <Image {...props} alt={alt ?? ''} priority={priority || isCover} />
         )
       },
       nextLink: Link,
@@ -167,9 +154,12 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({
       bodyClassName={cn(
         styles.notion,
         recordMap?.block &&
-          Object.keys(recordMap.block)[0] === rootPageId &&
+          Object.keys(recordMap.block)[0]?.replace(/-/g, '') ===
+            rootPageId.replace(/-/g, '') &&
           'index-page',
         isLiteMode && 'notion-lite',
+        isBlogPost && !tagsPage && 'article-page',
+        tagsPage && 'tags-page',
         isDarkMode && 'dark-mode'
       )}
       darkMode={isDarkMode}

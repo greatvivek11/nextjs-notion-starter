@@ -62,15 +62,14 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
   const [activeWordIndex, setActiveWordIndex] = React.useState<number>(-1)
   const [isPrepared, setIsPrepared] = React.useState(false)
   const [canGenerate, setCanGenerate] = React.useState(false)
-  const [jobStatus, setJobStatus] = React.useState<'idle' | 'running' | 'failed'>(
-    'idle'
-  )
+  const [jobStatus, setJobStatus] = React.useState<
+    'idle' | 'running' | 'failed'
+  >('idle')
   const [currentTime, setCurrentTime] = React.useState(0)
   const [duration, setDuration] = React.useState(0)
   const lastAutoScrollRef = React.useRef(0)
   const lastTimeRef = React.useRef(0)
   const lastAlignIdxRef = React.useRef(-1)
-
 
   const prepareArticleWordSpans = React.useCallback(() => {
     const contentRoot = document.querySelector('.notion-page-content')
@@ -93,7 +92,8 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     // De-duplicate: If a matched node is a child of another matched node, exclude the child.
     // The TreeWalker on the parent will naturally visit the child's text nodes.
     const blockNodes = allNodes.filter(
-      (node) => !allNodes.some((parent) => parent !== node && parent.contains(node))
+      (node) =>
+        !allNodes.some((parent) => parent !== node && parent.contains(node))
     )
 
     const elements: HTMLElement[] = []
@@ -187,6 +187,9 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
       }
     )
     const data = (await response.json()) as ArticleAudioLookupResponse
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to check article audio.')
+    }
     return data
   }, [pageId])
 
@@ -304,7 +307,6 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
     const alignWords = bundle.alignment.words
 
-
     // Pre-compute a monotone alignment-word → DOM-span index map.
     const map: number[] = new Array(alignWords.length).fill(-1)
     let domPtr = 0
@@ -324,7 +326,13 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
       if (map[ai] === -1 && domPtr < texts.length) {
         missCount++
         if (missCount <= 30) {
-          console.warn(`[AudioSync] MISS ai=${ai} "${alignWords[ai].text}" (norm="${target}") domPtr=${domPtr} window=[${texts.slice(domPtr, domPtr + 10).join(',')}]`)
+          console.warn(
+            `[AudioSync] MISS ai=${ai} "${
+              alignWords[ai].text
+            }" (norm="${target}") domPtr=${domPtr} window=[${texts
+              .slice(domPtr, domPtr + 10)
+              .join(',')}]`
+          )
         }
         domPtr++
       }
@@ -336,12 +344,16 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     for (let ai = 0; ai < map.length; ai++) {
       if (map[ai] !== -1) {
         if (map[ai] < prevDom) {
-          console.error(`[AudioSync] NON-MONOTONE! ai=${ai} "${alignWords[ai].text}" domIdx=${map[ai]} < prev=${prevDom}`)
+          console.error(
+            `[AudioSync] NON-MONOTONE! ai=${ai} "${alignWords[ai].text}" domIdx=${map[ai]} < prev=${prevDom}`
+          )
         }
         prevDom = map[ai]
       }
     }
-    console.log(`[AudioSync] Map built. Misses: ${missCount}, Final domPtr: ${domPtr}/${texts.length}`)
+    console.log(
+      `[AudioSync] Map built. Misses: ${missCount}, Final domPtr: ${domPtr}/${texts.length}`
+    )
 
     setIsPrepared(true)
   }, [bundle, isPrepared, prepareArticleWordSpans])
@@ -356,7 +368,7 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
 
       let foundIdx = -1
       const startSearchAt = Math.max(0, lastAlignIdxRef.current)
-      
+
       // 1. Monotonic Forward Search
       for (let i = startSearchAt; i < words.length; i++) {
         const word = words[i]
@@ -397,8 +409,8 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
                 foundIdx,
                 wordText: words[foundIdx].text,
                 wordStart: words[foundIdx].start,
-                wordEnd: words[foundIdx].end,
-              });
+                wordEnd: words[foundIdx].end
+              })
             }
             return prev === domIdx ? prev : domIdx
           })
@@ -467,7 +479,9 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
     if (outOfView && now - lastAutoScrollRef.current > 500) {
       lastAutoScrollRef.current = now
       activeElement.scrollIntoView({
-        behavior: 'smooth',
+        behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches
+          ? 'auto'
+          : 'smooth',
         block: 'center',
         inline: 'nearest'
       })
@@ -592,8 +606,8 @@ export const ArticleAudioPlayer: React.FC<ArticleAudioPlayerProps> = ({
               ? 'Generating audio locally in the background and uploading it to cache...'
               : status === 'loading'
                 ? 'Checking whether this article already has audio...'
-                  : status === 'playing'
-                    ? '' // Subtitle removed for more progress bar space
+                : status === 'playing'
+                  ? '' // Subtitle removed for more progress bar space
                   : bundle
                     ? ''
                     : canGenerate

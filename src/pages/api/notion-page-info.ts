@@ -12,6 +12,8 @@ import {
 import * as libConfig from '@/lib/config'
 import { mapImageUrl } from '@/lib/map-image-url'
 import { notion } from '@/lib/notion-api'
+import { getPageBlock } from '@/lib/notion-helpers'
+import { withRetry } from '@/lib/notion-retry'
 import type { NotionPageInfo } from '@/types'
 
 export default async function handler(
@@ -19,22 +21,27 @@ export default async function handler(
   res: NextApiResponse
 ) {
   if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST')
     return res.status(405).send({ error: 'method not allowed' })
   }
 
-  const pageId: string = parsePageId(req.body.pageId)
+  const pageId: string =
+    typeof req.body?.pageId === 'string'
+      ? parsePageId(req.body.pageId)
+      : undefined
   if (!pageId) {
-    throw new Error('Invalid notion page id')
+    console.warn('[Page Info API] Invalid page ID')
+    return res.status(400).json({ error: 'Invalid Notion page ID.' })
   }
 
-  const recordMap = await notion.getPage(pageId, { signFileUrls: false })
-
-  const keys = Object.keys(recordMap?.block || {})
-  const blockEntry = recordMap?.block?.[keys[0]]
-  const block =
-    (blockEntry as any)?.value?.value ||
-    (blockEntry as any)?.value ||
-    blockEntry
+  const recordMap = await withRetry((signal) =>
+    notion.getPage(pageId, {
+      signFileUrls: false,
+      fetchCollections: false,
+      ofetchOptions: { signal }
+    })
+  )
+  const block = getPageBlock(recordMap, pageId)
 
   if (!block) {
     throw new Error('Invalid recordMap for page')
@@ -131,9 +138,13 @@ async function isUrlReachable(url: string | null): Promise<boolean> {
   }
 
   try {
-    await fetch(url, { method: 'HEAD' })
-    return true
+    const response = await fetch(url, {
+      method: 'HEAD',
+      signal: AbortSignal.timeout(4000)
+    })
+    return response.ok
   } catch (err) {
+    console.warn('[Page Info API] Image reachability check failed', err)
     return false
   }
 }

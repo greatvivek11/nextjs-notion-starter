@@ -1,114 +1,91 @@
-# Vercel Caching & ISR Architecture: Resolving Fluid Compute & Memory Bottlenecks
+# Vercel caching and ISR architecture
 
-This document provides a highly thorough, comprehensive architectural breakdown of the caching, Incremental Static Regeneration (ISR), and build-time optimization journey for the Next.js Notion Starter. It details the exact root causes, intermediate pitfalls, and final architectural decisions made to resolve severe Vercel Fluid Compute timeouts, memory capacity limits, and runtime 500 errors.
+## Delivery and freshness
 
----
+The root, article, and tag routes retain `revalidate = 3600`. ISR is
+request-triggered: a page is not guaranteed to update exactly on the hour when
+there is no traffic. Failed regeneration must throw rather than cache an error
+UI with a successful response, allowing the last successful rendered page to
+remain available.
 
-## 1. The Initial Problem: Vercel Fluid Compute & Memory Capacity Issues
+The daily cron calls an externally configured webhook. It does not itself
+invalidate paths or tags. It is distinct from ISR and should not be increased
+to an hourly schedule on Hobby.
 
-As the Notion workspace grew to hundreds of articles and collections, deployments on Vercel began experiencing severe performance degradation, resulting in frequent 500/504 Serverless Function Timeouts and exceeding the allocated `1 vCPU / 2 GB Memory` limits.
+## Raw-data cache layers
 
-### Symptoms
-- **Dynamic Server Usage Errors in Production:** Serverless functions failed with `500 Internal Server Error` during runtime page navigations (e.g., `/wiki`, `/blogs`, and collection pages).
-- **High Fluid Compute Bills & Long Execution Times:** Vercel functions remained active for the maximum 10-second serverless execution duration before crashing.
-- **Memory Exhaustion:** Parsing massive, deeply nested Notion ASTs (Abstract Syntax Trees) and linked database views repeatedly in memory caused frequent Out-Of-Memory (OOM) crashes.
+[`notion-cache.ts`](../src/lib/notion-cache.ts) uses:
 
----
+1. Bounded, timestamped memory caches for pages, navigation, and sitemaps.
+2. Versioned JSON filesystem envelopes written atomically through temporary
+   files and rename.
+3. Optional shared Upstash Redis envelopes compressed with gzip/base64.
 
-## 2. The Root Cause Investigation: The `DYNAMIC_SERVER_USAGE` Trap
+All envelopes preserve the source fetch timestamp when moving between layers.
+Reading Redis, writing a local file, and build warmup do not make old content
+fresh. Legacy raw-map filesystem files are cold misses, not a source of newly
+dated content. Previous Redis envelopes without a version are still readable;
+page/navigation lookups also recognize undashed legacy ID keys.
 
-The investigation revealed a multi-layered architectural flaw involving Next.js 14/16 App Router caching mechanics, `@upstash/redis`, and fallback Notion API crawls.
+Page IDs are normalized to UUID form. Filesystem filenames are hashed from
+logical keys; sitemap keys remain compatible with existing Redis entries.
 
-### Step-by-Step Breakdown of the Failure Loop
+### Limits
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Client as Visitor / Vercel CDN
-    participant Next as Next.js 14/16 Runtime
-    participant NotionCache as NotionCache (notion-cache.ts)
-    participant Upstash as Upstash Redis REST API
-    participant NotionAPI as Notion Live API
+| Memory cache | Maximum entries | Serialized payload budget |
+| --- | --- | --- |
+| Pages | 64 | 32 MiB |
+| Navigation | 32 | 8 MiB |
+| Sitemaps | 2 | 16 MiB |
 
-    Client->>Next: Request /[pageId] (ISR / Runtime)
-    Next->>NotionCache: getPage(pageId)
-    NotionCache->>Upstash: redis.get(cacheKey) via native fetch()
-    Note over Next,Upstash: Upstash defaults to cache: 'no-store'<br/>Next.js intercepts and throws DYNAMIC_SERVER_USAGE!
-    Next-->>NotionCache: Throws DYNAMIC_SERVER_USAGE Exception
-    Note over NotionCache: try...catch block swallows exception<br/>Logs "[Notion Redis Error]" & returns null
-    NotionCache->>NotionAPI: Fallback: Full Notion API Crawl (getBlocks, getCollections)
-    Note over NotionAPI: Massive AST traversal exceeds 10s Vercel timeout
-    NotionAPI-->>Next: 504 Gateway Timeout / 500 Error
-    Next-->>Client: 500 Internal Server Error
-```
+These budgets constrain retained serialized data, not exact JavaScript heap
+usage. Objects, clones, compression buffers, and in-flight work consume
+additional memory. Oversized values can still use disk/Redis without retention
+in memory.
 
-### 1. The `@upstash/redis` `no-store` Default
-By default, the `@upstash/redis` SDK utilizes the native Node.js `fetch()` API to communicate with Upstash REST endpoints. Crucially, the SDK configures these fetch requests with `cache: 'no-store'` to ensure it always retrieves the latest key value.
+The runtime freshness window is one hour. Memory access also uses the existing
+ten-minute source-age window. Redis retention is seven days for pages/navigation
+and one day for sitemaps; retention is not the runtime freshness window.
 
-### 2. Next.js 14/16 Static & ISR Interception
-When Next.js renders a page statically or executes an ISR background revalidation function, it strictly monitors all outgoing `fetch()` calls. If Next.js encounters a `fetch()` configured with `cache: 'no-store'` inside a static/ISR context, it immediately aborts the static pass by throwing an internal control-flow exception named `DYNAMIC_SERVER_USAGE`.
+## Build versus runtime
 
-### 3. Swallowing the Exception in `notion-cache.ts`
-Inside `NotionCache.getPage()`, the `redis.get()` call was wrapped in a defensive `try...catch` block. When Next.js threw `DYNAMIC_SERVER_USAGE`, the `catch` block intercepted it, treated it as a standard Redis connection failure, logged `[Notion Redis Error] GET page:... Error: Dynamic server usage`, and returned `null`.
+The Next configuration sets `NOTION_BUILD_PHASE` only in the build process,
+inherited by its workers. No persistent build marker file controls runtime
+behavior. Build warmup can reuse data within the Redis retention window;
+production runtime still rejects raw entries older than the freshness window.
 
-### 4. The Fatal Fallback Crawl
-Because `redis.get()` returned `null`, the application assumed the cache was empty. It immediately initiated a full, unoptimized Notion API crawl (`getCollectionData` -> `getPage` -> `getBlocks`). Crawling large databases with dozens of linked views requires multiple sequential HTTP round-trips to Notion's API. This massive operation consistently breached Vercel's 10-second serverless execution window, causing the function to crash with a 500 error.
+Warmup concurrency is three. Page and sitemap promise deduplication and the
+request limiter operate **per process**, not across all Vercel instances.
 
----
+Build/local filesystem caches use `.notion-cache` in the working directory.
+Vercel runtime caches use the OS temporary directory. Neither a serverless
+instance's memory nor its temporary files are durable across instances.
+Redis is the shared persistence layer; Next/Vercel's rendered-page cache is the
+visitor delivery layer.
 
-## 3. The Definitive Architectural Solution
+## Derived views and error handling
 
-To achieve complete stability, eliminate 500 errors, and ensure lightning-fast static delivery, we implemented a three-pillar caching and build orchestration architecture.
+Raw maps are isolated at cache boundaries. Each caller receives its own map
+before navigation merging, relative-date filters, and tag transformations.
+Concurrent callers share raw fetch work, not mutable filtered results.
+Cache hits and misses both apply navigation enrichment.
 
-### Pillar 1: Overriding Upstash Cache Mode at the Constructor Level
+Expected missing files are cache misses. Filesystem corruption/permission
+errors, Redis failures, and temporary-file cleanup failures are logged.
+Framework control-flow exceptions are rethrown using `unstable_rethrow`.
 
-To prevent Next.js from throwing `DYNAMIC_SERVER_USAGE`, we explicitly configured the `@upstash/redis` client constructor with `cache: 'default'`.
+The Redis SDK retains `cache: 'default'`. This is an SDK fetch policy, not a
+guarantee that every request is cached or that a route remains static. Confirm
+actual production build output and ISR behavior on the installed Next version;
+do not infer them solely from a fetch flag.
 
-```typescript
-// src/lib/notion-cache.ts
-this.redis = (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL)
-  ? new Redis({
-      url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!,
-      token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!,
-      cache: 'default' // Matches RequesterConfig TypeScript definition perfectly
-    })
-  : null;
-```
+## Free-tier operations
 
-**Architectural Impact:** By passing `cache: 'default'`, Upstash's underlying fetch calls no longer trigger Next.js dynamic bailouts. `redis.get()` executes instantly in milliseconds during both SSG and ISR runtime contexts.
+Check actual Vercel CPU/memory/invocation, image, analytics, build, and optional
+Blob usage, plus Upstash commands/storage. A cache reduces load but does not
+guarantee zero cost at arbitrary traffic or make an unofficial upstream API
+stable.
 
-### Pillar 2: Hybrid Build-Time Cache Warming & Worker Synchronization
-
-During the Vercel deployment build phase (`next build`), Next.js spawns multiple parallel worker threads (`Generating static pages using 2 workers...`). If each worker attempted to hit the Notion API independently, Vercel would get severely rate-limited (HTTP 429) by Notion.
-
-We designed a synchronized warmup pipeline:
-
-1. **Build Phase Marker:** `next.config.js` creates a `.build-phase` marker file synchronously before compilation begins. `NotionCache` detects this file to know it is running inside a build environment.
-2. **Sequential Warmup (`build-warmup`):** Before worker threads spawn, the main build process warms the cache. It fetches all sitemaps, navigation links, and 300+ Notion pages directly from Upstash Redis (or Notion API on cache miss) and writes them to the local Vercel build container filesystem (`.notion-cache/`).
-3. **100% Worker Filesystem Hits:** When Next.js spawns parallel workers to render static HTML, every single page lookup hits the pre-warmed local disk cache (`[Notion FS HIT]`). Zero network calls are made to Notion or Redis during the worker phase, resulting in flawless builds completed in ~20 seconds.
-
-### Pillar 3: Restoring Live ISR Revalidation Mechanics
-
-With Redis communication fully stabilized, we restored the runtime `effectiveTTL` back to `revalidateTTL` (1 hour) for `getPage`, `getNavLinkPage`, and `getSitemap`.
-
-```typescript
-// Inside notion-cache.ts
-const effectiveTTL = (source === 'build-warmup' || this.isBuildPhase) 
-  ? redisPageTTL // 7 days during build warmup to ensure build stability
-  : revalidateTTL; // 1 hour at runtime for ISR background updates
-```
-
-**How ISR Operates in Production:**
-1. A visitor requests `/wiki` after 1 hour. Vercel serves the stale CDN edge cache instantly and spawns a background ISR revalidation function.
-2. `notionCache.getPage` calls `redis.get()`. Thanks to `cache: 'default'`, no exception is thrown.
-3. `notionCache` evaluates the timestamp: `if (now - cached.timestamp < revalidateTTL * 1000)`. Since 1 hour has elapsed, it identifies the cache as stale (`[Notion Redis STALE]`) and returns `null`.
-4. The background function executes a clean, targeted fetch against the Notion API, retrieves the latest live content edits, updates Upstash Redis (`redis.set`), and returns the fresh AST.
-5. Vercel updates its global CDN edge cache seamlessly.
-
----
-
-## 4. Key Learnings & Summary of Best Practices
-
-1. **Never Wrap `fetch` Blindly in `try...catch` in Next.js:** Next.js uses internal exceptions (`DYNAMIC_SERVER_USAGE`, `NEXT_REDIRECT`, `NEXT_NOT_FOUND`) for control flow. Catching and swallowing these errors in utility libraries will cause catastrophic rendering fallbacks.
-2. **Align SDK Configurations with Next.js App Router Rules:** Always verify the `cache` header policy of third-party REST SDKs (like Upstash, Supabase, or Algolia) when running inside Next.js 14/16 Server Components.
-3. **Separate Build-Time TTL from Runtime TTL:** Using a long TTL (e.g., 7 days) during build warmup guarantees build success and prevents API rate limits, while using a shorter TTL (e.g., 1 hour) at runtime preserves dynamic ISR content freshness.
+- [Vercel Hobby](https://vercel.com/docs/plans/hobby)
+- [Cron limits](https://vercel.com/docs/cron-jobs/usage-and-pricing)
+- [Upstash pricing](https://upstash.com/pricing/redis)

@@ -1,4 +1,6 @@
 import { NextApiRequest, NextApiResponse } from 'next'
+import { parsePageId } from 'notion-utils'
+import { withRetry } from '@/lib/notion-retry'
 
 export default async function handler(
   req: NextApiRequest,
@@ -6,10 +8,16 @@ export default async function handler(
 ) {
   const { pageId, blockId } = req.query
 
-  if (!pageId || typeof pageId !== 'string') {
+  if (req.method !== 'GET') {
+    res.setHeader('Allow', 'GET')
+    return res.status(405).json({ error: 'method not allowed' })
+  }
+  if (typeof pageId !== 'string' || !parsePageId(pageId)) {
+    console.warn('[PDF API] Invalid page ID')
     return res.status(400).json({ error: 'pageId query param is required' })
   }
-  if (!blockId || typeof blockId !== 'string') {
+  if (typeof blockId !== 'string' || !parsePageId(blockId)) {
+    console.warn('[PDF API] Invalid block ID')
     return res.status(400).json({ error: 'blockId query param is required' })
   }
 
@@ -19,11 +27,14 @@ export default async function handler(
     // Fetch the page with signFileUrls: true.
     // loadPageChunk works without auth for public Notion pages,
     // and addSignedUrls then signs all file URLs in that page context.
-    const recordMap = await notion.getPage(pageId, {
-      fetchMissingBlocks: true,
-      fetchCollections: false,
-      signFileUrls: true
-    })
+    const recordMap = await withRetry((signal) =>
+      notion.getPage(pageId, {
+        fetchMissingBlocks: true,
+        fetchCollections: false,
+        signFileUrls: true,
+        ofetchOptions: { signal }
+      })
+    )
 
     // Extract the signed URL for our PDF block
     const signedUrl = recordMap?.signed_urls?.[blockId]
@@ -36,7 +47,9 @@ export default async function handler(
     }
 
     // Fetch the PDF binary from the signed URL (server-to-server)
-    const pdfResponse = await fetch(signedUrl)
+    const pdfResponse = await fetch(signedUrl, {
+      signal: AbortSignal.timeout(10000)
+    })
 
     if (!pdfResponse.ok) {
       return res.status(pdfResponse.status).json({
@@ -52,8 +65,8 @@ export default async function handler(
     res.setHeader('Content-Disposition', 'inline')
     res.setHeader('Cache-Control', 'public, max-age=3000, s-maxage=3000')
     res.status(200).send(buffer)
-  } catch (err: any) {
+  } catch (err) {
     console.error('API /api/notion-pdf Error:', err)
-    res.status(500).json({ error: err.message || 'Internal server error' })
+    res.status(502).json({ error: 'PDF is temporarily unavailable.' })
   }
 }

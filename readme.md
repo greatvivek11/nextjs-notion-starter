@@ -32,7 +32,7 @@ This project is a fork of Travis Fischer's [nextjs-notion-starter-kit](https://g
 ## Setup & Local Development
 
 ### Prerequisites
-- Node.js 18+
+- Node.js 22.12+ (use `nvm use` with the supplied `.nvmrc`)
 - A Public Notion Page (to use as your root CMS page)
 
 ### Quick Start
@@ -82,6 +82,8 @@ To enable local development article read-aloud generation:
 
 ```bash
 npm run audio:setup-mlx
+```
+
 ### Local Audio Generation (Optional)
 
 The starter now supports high-performance local audio generation with word-level synchronization using **MLX-Audio** and **Kokoro**. 
@@ -97,9 +99,39 @@ The starter now supports high-performance local audio generation with word-level
 3.  **Run**:
     -   In Development: Click "Listen" in the floating audio player.
     -   CLI: `npm run audio:generate -- <pageId>`
-.
 
 Generated audio is cached per article content hash in Blob. In production and preview, the player only appears for articles that already have cached audio.
+
+## Development checks
+
+```bash
+npm run check       # lint + TypeScript checks; does not modify source files
+npm test            # behavioral transport/cache regression tests
+npm run build       # production build with your configured public Notion root
+```
+
+TypeScript 7 uses the native compiler. Tests use a development-only esbuild
+loader rather than TypeScript's removed JavaScript compiler API. Strict checking
+currently covers cache policy and navigation helpers through
+`tsconfig.strict.json`; the legacy renderer-facing code is not yet globally
+strict. Expand that boundary deliberately instead of suppressing errors.
+
+`npm run format` and `npm run check:fix` are explicit modifying commands.
+`ANALYZE=true npm run build -- --webpack` enables the compatible bundle analyzer.
+The framework is pinned to the verified stable version, not the registry's
+potentially prerelease `latest` tag.
+
+Persistent Turbopack caching is disabled for production builds after a restored
+Vercel build cache emitted stale global CSS alongside updated navigation/footer
+markup. Development caching and the Notion/Redis/ISR caches are unchanged.
+Verify the deployed stylesheet as well as the build status when reviewing a
+Preview deployment.
+
+The HTTP transport test opens a loopback listener. Restricted sandboxes must
+permit that operation to run the complete test suite and a local browser preview.
+A diagnostic subset can run with
+`node --test --test-skip-pattern="all HTTP endpoints" tests/*.test.cjs`;
+that is not a replacement for complete integration validation.
 
 ## Configuration
 
@@ -152,7 +184,22 @@ While the core application is platform-agnostic, we recommend the following Verc
 
 ### Cron behavior
 
-[`vercel.json`](./vercel.json) schedules `/api/cron` daily. That route checks `CRON_SECRET` and then POSTs to `CRON_URL`, which is intended for an external redeploy or revalidation webhook.
+[`vercel.json`](./vercel.json) schedules `/api/cron` daily. That route checks
+`CRON_SECRET` and then POSTs to `CRON_URL`, which is intended for an external
+redeploy or revalidation webhook. Missing configuration returns 503; upstream
+failure/timeout returns 502 rather than reporting success. Secrets stay
+server-side.
+
+The daily cron is independent of hourly, request-triggered ISR. Memory caches
+are bounded; filesystem and Redis envelopes preserve source timestamps. On
+Vercel, runtime disk caching uses temporary storage, not the deployment directory.
+See the [cache architecture](./docs/vercel-caching-and-isr-architecture.md).
+
+This uses Notion's **unofficial public-page endpoints**, not the supported
+integration API. The existing free setup remains suitable for a personal site,
+subject to provider quotas and Vercel Hobby's personal/non-commercial policy.
+Do not assume published official Notion integration rate limits apply to these
+endpoints, or that any traffic volume is guaranteed to remain free.
 
 ## Credits & Documentation
 

@@ -25,14 +25,16 @@ export function buildPageMetadata(
       url,
       siteName,
       images: image ? [{ url: image }] : [],
-      type: 'website'
+      type: page.isBlogPost && !page.tagsPage ? 'article' : 'website'
     },
     twitter: {
       card: 'summary_large_image',
       title: fullTitle,
       description: description || config.description,
       images: image ? [image] : [],
-      creator: config.twitter || undefined
+      creator: config.twitter
+        ? `@${config.twitter.replace(/^@/, '')}`
+        : undefined
     },
     alternates: {
       canonical: url

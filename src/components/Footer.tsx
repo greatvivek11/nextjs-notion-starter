@@ -1,114 +1,64 @@
-'use client'
-
 import { appConfig } from '@/lib/config'
-import { useDarkMode } from '@/lib/use-dark-mode'
-import {
-  Github,
-  Linkedin,
-  Mail,
-  Moon,
-  Sun,
-  Twitter,
-  Youtube
-} from 'lucide-react'
-import * as React from 'react'
+import { Github, Linkedin, Mail, Twitter, Youtube } from 'lucide-react'
+import { ThemeToggle } from './ThemeToggle'
 
 export const Footer = () => {
-  const [hasMounted, setHasMounted] = React.useState(false)
-  const { isDarkMode, toggleDarkMode } = useDarkMode()
-  const currentYear = new Date().getFullYear()
-
-  React.useEffect(() => {
-    setHasMounted(true)
-  }, [])
+  const links = [
+    {
+      value: appConfig.github,
+      href: `https://github.com/${appConfig.github}`,
+      label: 'GitHub',
+      Icon: Github
+    },
+    {
+      value: appConfig.linkedin,
+      href: `https://www.linkedin.com/in/${appConfig.linkedin}`,
+      label: 'LinkedIn',
+      Icon: Linkedin
+    },
+    {
+      value: appConfig.twitter,
+      href: `https://twitter.com/${appConfig.twitter}`,
+      label: 'Twitter',
+      Icon: Twitter
+    },
+    {
+      value: appConfig.newsletter,
+      href: appConfig.newsletter,
+      label: 'Newsletter',
+      Icon: Mail
+    },
+    {
+      value: appConfig.youtube,
+      href: `https://www.youtube.com/${appConfig.youtube}`,
+      label: 'YouTube',
+      Icon: Youtube
+    }
+  ]
 
   return (
-    <footer className='w-full max-w-5xl mx-auto px-4 py-2 flex items-center justify-between text-foreground font-medium mt-2 mb-4 border-t border-border/30'>
-      {/* Left: Copyright */}
-      <div className='flex-1 text-sm font-medium'>
-        Copyright {currentYear} {appConfig.author}
-      </div>
-
-      {/* Center: Settings / Dark Mode Toggle */}
-      <div className='flex-1 flex justify-center'>
-        {hasMounted && (
-          <button
-            onClick={toggleDarkMode}
-            className='p-2 rounded-md hover:bg-muted transition-colors hover:text-foreground'
-            title='Toggle dark mode'
-            aria-label='Toggle dark mode'
-          >
-            {isDarkMode ? (
-              <Moon className='w-5 h-5' />
-            ) : (
-              <Sun className='w-5 h-5' />
-            )}
-          </button>
-        )}
-      </div>
-
-      {/* Right: Social Icons */}
-      <div className='flex-1 flex justify-end gap-4'>
-        {appConfig.twitter && (
-          <a
-            className='hover:text-foreground transition-colors'
-            href={`https://twitter.com/${appConfig.twitter}`}
-            title={`Twitter @${appConfig.twitter}`}
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            <Twitter className='w-5 h-5' />
-          </a>
-        )}
-
-        {appConfig.github && (
-          <a
-            className='hover:text-foreground transition-colors'
-            href={`https://github.com/${appConfig.github}`}
-            title={`GitHub @${appConfig.github}`}
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            <Github className='w-5 h-5' />
-          </a>
-        )}
-
-        {appConfig.linkedin && (
-          <a
-            className='hover:text-foreground transition-colors'
-            href={`https://www.linkedin.com/in/${appConfig.linkedin}`}
-            title={`LinkedIn ${appConfig.author}`}
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            <Linkedin className='w-5 h-5' />
-          </a>
-        )}
-
-        {appConfig.newsletter && (
-          <a
-            className='hover:text-foreground transition-colors'
-            href={`${appConfig.newsletter}`}
-            title={`Newsletter ${appConfig.author}`}
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            <Mail className='w-5 h-5' />
-          </a>
-        )}
-
-        {appConfig.youtube && (
-          <a
-            className='hover:text-foreground transition-colors'
-            href={`https://www.youtube.com/${appConfig.youtube}`}
-            title={`YouTube ${appConfig.author}`}
-            target='_blank'
-            rel='noopener noreferrer'
-          >
-            <Youtube className='w-5 h-5' />
-          </a>
-        )}
-      </div>
+    <footer className='site-footer'>
+      <p>
+        Copyright {new Date().getFullYear()} {appConfig.author}
+      </p>
+      {appConfig.navigationStyle !== 'custom' && <ThemeToggle />}
+      <nav aria-label='Social links' className='site-footer__links'>
+        {links
+          .filter((link) => link.value)
+          .map(({ href, label, Icon }) => (
+            <a
+              key={label}
+              href={href}
+              aria-label={label}
+              title={label}
+              target='_blank'
+              rel='noopener noreferrer'
+            >
+              <Icon size={18} aria-hidden='true' />
+              <span>{label}</span>
+            </a>
+          ))}
+      </nav>
     </footer>
   )
 }

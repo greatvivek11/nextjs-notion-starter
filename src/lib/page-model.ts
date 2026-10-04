@@ -4,6 +4,7 @@ import { getBlockTitle, getPageProperty } from 'notion-utils'
 import { appConfig } from './config'
 import { mapImageUrl } from './map-image-url'
 import { getCanonicalPageUrl } from './map-page-url'
+import { getPageBlock } from './notion-helpers'
 
 /**
  * Resolves a high-level PageModel from a raw ResolvedPage.
@@ -14,12 +15,10 @@ export function resolvePageModel(resolvedPage: ResolvedPage): PageModel {
   const { recordMap, site, pageId, tagsPage, propertyToFilterName } =
     resolvedPage
 
-  const keys = Object.keys(recordMap?.block || {})
-  const blockEntry = recordMap?.block?.[keys[0]]
   const block =
-    (blockEntry as any)?.value?.value ||
-    (blockEntry as any)?.value ||
-    blockEntry
+    recordMap && getPageBlock(recordMap, tagsPage ? undefined : pageId)
+  if (!block)
+    throw new Error('Unable to resolve page metadata: missing root block.')
 
   const isBlogPost =
     block?.type === 'page' && block?.parent_table === 'collection'

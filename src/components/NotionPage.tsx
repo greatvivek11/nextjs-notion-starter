@@ -9,13 +9,11 @@ import { cn } from '@/lib/utils'
 import type { Block, ExtendedRecordMap } from 'notion-types'
 import type * as types from '@/types'
 
-import { Footer } from './Footer'
 import { Navbar } from './Navbar'
 import { Page404 } from './Page404'
 import { PageAside } from './PageAside'
-import { PageHead } from './PageHead'
 
-import { resolvePageModel } from '@/lib/page-model'
+import { getPageBlock } from '@/lib/notion-helpers'
 import { NotionRenderer } from './NotionRenderer'
 
 const ArticleAudioPlayer = dynamic(
@@ -23,27 +21,15 @@ const ArticleAudioPlayer = dynamic(
   { ssr: false }
 )
 
-export const NotionPage: React.FC<types.PageProps> = (props) => {
-  const { site, recordMap, error, pageId, tagsPage, propertyToFilterName } =
-    props
+export const NotionPage: React.FC<
+  types.PageProps & { pageModel: types.PageModel; footer: React.ReactNode }
+> = (props) => {
+  const { site, recordMap, error, pageId, pageModel: page, footer } = props
 
   const searchParams = useSearchParams()
   const lite = searchParams.get('lite')
   const isLiteMode = lite === 'true'
   const { isDarkMode } = useDarkMode()
-
-  const page = React.useMemo(
-    () =>
-      resolvePageModel({
-        site,
-        recordMap,
-        error,
-        pageId,
-        tagsPage,
-        propertyToFilterName
-      }),
-    [site, recordMap, error, pageId, tagsPage, propertyToFilterName]
-  )
 
   // Hide images that fail to load (e.g. expired signed URLs)
   React.useEffect(() => {
@@ -54,25 +40,26 @@ export const NotionPage: React.FC<types.PageProps> = (props) => {
       const notionEl = img.closest('.notion')
       if (!notionEl) return
 
-      img.style.display = 'none'
+      img.style.visibility = 'hidden'
+      console.warn('[Images] Notion image failed to load', { pageId })
 
       const coverWrapper = img.closest(
-        '.notion-page-cover-wrapper, .notion-collection-card-cover'
+        '.notion-page-cover-wrapper, .notion-collection-card-cover, .notion-asset-wrapper-image'
       )
       if (coverWrapper instanceof HTMLElement) {
-        coverWrapper.style.display = 'none'
+        coverWrapper.dataset.imageError = 'true'
       }
     }
 
     document.addEventListener('error', handleImageError, true)
     return () => document.removeEventListener('error', handleImageError, true)
-  }, [])
+  }, [pageId])
 
   if (error || !site || !recordMap) {
     return <Page404 site={site} pageId={pageId} error={error} />
   }
 
-  const block = recordMap.block[Object.keys(recordMap.block)[0]]?.value as Block
+  const block = getPageBlock(recordMap, page.tagsPage ? undefined : pageId)
   if (!block) {
     return <Page404 site={site} pageId={pageId} error={error} />
   }
@@ -98,22 +85,20 @@ export const NotionPage: React.FC<types.PageProps> = (props) => {
   )
 
   return (
-    <div className='min-h-screen flex flex-col selection:bg-primary/30'>
-      <PageHead
-        pageId={pageId}
-        site={site}
-        title={page.title}
-        description={page.description}
-        image={page.image}
-        url={page.canonicalUrl}
-      />
+    <div className='site-shell min-h-screen flex flex-col selection:bg-primary/30'>
+      {!isLiteMode && (
+        <a href='#main-content' className='skip-link'>
+          Skip to content
+        </a>
+      )}
+      {!isLiteMode && config.navigationStyle === 'custom' && <Navbar />}
 
-      {!isLiteMode && <Navbar />}
-
-      <main
+      <div
+        id='main-content'
+        tabIndex={-1}
         className={cn(
-          'grow transition-all duration-500',
-          !isLiteMode && 'pt-16'
+          'grow',
+          !isLiteMode && config.navigationStyle === 'custom' && 'site-content'
         )}
       >
         <NotionRenderer
@@ -125,11 +110,15 @@ export const NotionPage: React.FC<types.PageProps> = (props) => {
           footer={null} // Footer is handled by the shell now
           showTableOfContents={page.showTableOfContents}
           minTableOfContentsItems={page.minTableOfContentsItems}
+          isBlogPost={page.isBlogPost}
+          tagsPage={page.tagsPage}
         />
-        {page.isBlogPost && !page.tagsPage && pageId && <ArticleAudioPlayer pageId={pageId} />}
-      </main>
+        {page.isBlogPost && !page.tagsPage && pageId && (
+          <ArticleAudioPlayer pageId={pageId} />
+        )}
+      </div>
 
-      {!isLiteMode && <Footer />}
+      {!isLiteMode && footer}
     </div>
   )
 }

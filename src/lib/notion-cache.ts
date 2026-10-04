@@ -1,9 +1,13 @@
-import fsSync, { promises as fs } from 'fs'
-import path from 'path'
-import zlib from 'zlib'
-import { promisify } from 'util'
+import { createHash, randomUUID } from 'node:crypto'
+import { promises as fs } from 'node:fs'
+import { tmpdir } from 'node:os'
+import path from 'node:path'
+import { promisify } from 'node:util'
+import zlib from 'node:zlib'
 import { Redis } from '@upstash/redis'
-import { ExtendedRecordMap } from 'notion-types'
+import type { ExtendedRecordMap } from 'notion-types'
+import { unstable_rethrow } from 'next/navigation'
+import { BoundedCache, type CacheEntry, isFresh } from './cache-policy'
 import {
   notionCacheDir,
   notionCacheTTL,
@@ -12,342 +16,252 @@ import {
   redisSitemapTTL,
   revalidateTTL
 } from './config'
-import * as types from './types'
+import type { SiteMap } from './types'
 
 const gzip = promisify(zlib.gzip)
 const gunzip = promisify(zlib.gunzip)
-
-const FS_CACHE_DIR = path.join(process.cwd(), notionCacheDir)
-const SITEMAP_CACHE_FILE = path.join(FS_CACHE_DIR, 'sitemap-cache.json')
-const NOTION_PAGE_ID_PATTERN =
+const PAGE_ID =
   /^(?:[0-9a-f]{32}|[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})$/i
-
-function getPageCachePath(pageId: string, isNav: boolean) {
-  if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
-    throw new Error('Invalid Notion page ID for filesystem cache.')
-  }
-
-  const fileName = `${isNav ? 'nav-' : ''}${pageId}.json`
-  return path.join(FS_CACHE_DIR, fileName)
-}
-
-// Upstash Redis configuration (Vercel connector provides these)
+const redisUrl =
+  process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL
+const redisToken =
+  process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
 const redis =
-  (process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL) &&
-  (process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN)
-    ? new Redis({
-        url: process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL!,
-        token: process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN!,
-        cache: 'default'
-      })
+  redisUrl && redisToken
+    ? new Redis({ url: redisUrl, token: redisToken, cache: 'default' })
     : null
 
-interface CachedPage {
-  data: ExtendedRecordMap
-  timestamp: number
+function normalizePageId(pageId: string): string {
+  if (!PAGE_ID.test(pageId))
+    throw new Error('Invalid Notion page ID for cache.')
+  const id = pageId.replace(/-/g, '').toLowerCase()
+  return `${id.slice(0, 8)}-${id.slice(8, 12)}-${id.slice(12, 16)}-${id.slice(
+    16,
+    20
+  )}-${id.slice(20)}`
 }
 
-interface CachedSitemap {
-  data: Partial<types.SiteMap>
-  timestamp: number
+function isEntry<T>(value: unknown): value is CacheEntry<T> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'data' in value &&
+    'timestamp' in value &&
+    typeof value.timestamp === 'number' &&
+    Number.isFinite(value.timestamp) &&
+    typeof value.data === 'object' &&
+    value.data !== null
+  )
 }
 
-class NotionCache {
-  private memoryCache = new Map<string, CachedPage>()
-  private navLinkCache = new Map<string, ExtendedRecordMap>()
-  private sitemapCache = new Map<string, CachedSitemap>()
+function validPayload(key: string, value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false
+  const field = key.startsWith('sitemap:') ? 'canonicalPageMap' : 'block'
+  return (
+    field in value &&
+    typeof value[field] === 'object' &&
+    value[field] !== null &&
+    !Array.isArray(value[field])
+  )
+}
 
-  public get isBuildPhase(): boolean {
+function logCacheError(operation: string, key: string, error: unknown) {
+  unstable_rethrow(error)
+  console.warn(`[Notion Cache] ${operation} failed`, { key, error })
+}
+
+export class NotionCache {
+  private pages = new BoundedCache<ExtendedRecordMap>()
+  private navigation = new BoundedCache<ExtendedRecordMap>(32, 8 * 1024 * 1024)
+  private sitemaps = new BoundedCache<Partial<SiteMap>>(2, 16 * 1024 * 1024)
+
+  get isBuildPhase(): boolean {
     return (
       process.env.NEXT_PHASE === 'phase-production-build' ||
-      fsSync.existsSync(path.join(FS_CACHE_DIR, '.build-phase'))
+      process.env.NOTION_BUILD_PHASE === 'true'
     )
   }
 
-  private shouldBypassRedis(source?: string): boolean {
-    return this.isBuildPhase && source !== 'build-warmup'
+  private get directory(): string {
+    return process.env.VERCEL && !this.isBuildPhase
+      ? path.join(tmpdir(), notionCacheDir)
+      : path.join(process.cwd(), notionCacheDir)
   }
 
-  async getPage(pageId: string, source?: string): Promise<ExtendedRecordMap | null> {
-    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
-      throw new Error('Invalid Notion page ID for cache lookup.')
-    }
+  private async read<T>(
+    key: string,
+    memory: BoundedCache<T>,
+    retentionTTL: number,
+    source?: string
+  ): Promise<T | null> {
+    const build = this.isBuildPhase || source === 'build-warmup'
+    const freshnessTTL = build ? retentionTTL : revalidateTTL
+    const cached = memory.get(
+      key,
+      Math.min(notionCacheTTL / 1000, freshnessTTL)
+    )
+    if (cached) return structuredClone(cached.data)
 
-    const now = Date.now()
-    const effectiveTTL = (source === 'build-warmup' || this.isBuildPhase) ? redisPageTTL : revalidateTTL
-
-    // 1. Memory Check
-    const cached = this.memoryCache.get(pageId)
-    if (cached && now - cached.timestamp < notionCacheTTL) {
-      return cached.data
-    }
-
-    // 2. Disk Check (Fallback for build-time or local dev)
-    const fsCached = await this.getFsCachedPage(pageId, false, effectiveTTL, source === 'build-warmup')
-    if (fsCached) {
-      this.memoryCache.set(pageId, { data: fsCached, timestamp: now })
-      return fsCached
-    }
-
-    // 3. Redis Check (Shared persistent cache)
-    if (redis && !this.shouldBypassRedis(source)) {
-      try {
-        const compressed = await redis.get<string>(`page:${pageId}`)
-        if (compressed) {
-          const decompressed = await gunzip(Buffer.from(compressed, 'base64'))
-          const cachedData: CachedPage = JSON.parse(decompressed.toString())
-
-          // Check if Redis cache is older than effective TTL (Soft Expiration)
-          if (now - cachedData.timestamp < effectiveTTL * 1000) {
-            console.log('Notion Redis cache hit', { pageId })
-            this.memoryCache.set(pageId, cachedData)
-            await this.setFsCachedPage(pageId, cachedData.data, false)
-            return cachedData.data
-          } else {
-            console.log('Notion Redis cache stale; refreshing', { pageId })
-          }
-        }
-      } catch (err) {
-        console.error('Notion Redis GET failed', { pageId, error: err })
-      }
-    }
-
-    return null
-  }
-
-  async setPage(pageId: string, data: ExtendedRecordMap, source = 'unknown') {
-    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
-      throw new Error('Invalid Notion page ID for cache update.')
-    }
-
-    const timestamp = Date.now()
-    this.memoryCache.set(pageId, { data, timestamp })
-
-    // Save to Redis (compressed to save space)
-    if (redis && !this.shouldBypassRedis(source)) {
-      try {
-        const cacheObj: CachedPage = { data, timestamp }
-        const compressed = await gzip(JSON.stringify(cacheObj))
-        await redis.set(`page:${pageId}`, compressed.toString('base64'), {
-          ex: redisPageTTL
-        })
-        console.log('Notion Redis cache set', { pageId })
-      } catch (err) {
-        console.error('Notion Redis SET failed', { pageId, error: err })
-      }
-    }
-
-    await this.setFsCachedPage(pageId, data)
-  }
-
-  async getNavLinkPage(pageId: string, source = 'unknown'): Promise<ExtendedRecordMap | null> {
-    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
-      throw new Error('Invalid Notion page ID for cache lookup.')
-    }
-
-    const now = Date.now()
-    const effectiveTTL = source === 'build-warmup' ? redisNavTTL : revalidateTTL
-
-    // 1. Memory Check
-    const cached = this.navLinkCache.get(pageId)
-    if (cached) return cached
-
-    // 2. Disk Check
-    const fsCached = await this.getFsCachedPage(pageId, true, effectiveTTL, source === 'build-warmup')
-    if (fsCached) {
-      this.navLinkCache.set(pageId, fsCached)
-      return fsCached
-    }
-
-    // 3. Redis Check
-    if (redis && !this.shouldBypassRedis(source)) {
-      try {
-        const compressed = await redis.get<string>(`nav:${pageId}`)
-        if (compressed) {
-          const decompressed = await gunzip(Buffer.from(compressed, 'base64'))
-          const cachedData: CachedPage = JSON.parse(decompressed.toString())
-
-          if (now - cachedData.timestamp < effectiveTTL * 1000) {
-            this.navLinkCache.set(pageId, cachedData.data)
-            await this.setFsCachedPage(pageId, cachedData.data, true)
-            return cachedData.data
-          }
-        }
-      } catch (err) {
-        // Ignore
-      }
-    }
-
-    return null
-  }
-
-  async setNavLinkPage(pageId: string, data: ExtendedRecordMap, source = 'unknown') {
-    if (!NOTION_PAGE_ID_PATTERN.test(pageId)) {
-      throw new Error('Invalid Notion page ID for cache update.')
-    }
-
-    const timestamp = Date.now()
-    this.navLinkCache.set(pageId, data)
-
-    if (redis && !this.shouldBypassRedis(source)) {
-      try {
-        const cacheObj: CachedPage = { data, timestamp }
-        const compressed = await gzip(JSON.stringify(cacheObj))
-        await redis.set(`nav:${pageId}`, compressed.toString('base64'), {
-          ex: redisNavTTL
-        })
-      } catch (err) {
-        // Ignore
-      }
-    }
-
-    await this.setFsCachedPage(pageId, data, true)
-  }
-
-  private async getFsCachedPage(
-    pageId: string,
-    isNav = false,
-    effectiveTTL = revalidateTTL,
-    touchFile = false
-  ): Promise<ExtendedRecordMap | null> {
-    const cachePath = getPageCachePath(pageId, isNav)
+    const filePath = this.filePath(key)
     try {
-      const stats = await fs.stat(cachePath)
-
-      if (Date.now() - stats.mtimeMs > effectiveTTL * 1000) {
-        return null
+      const value: unknown = JSON.parse(await fs.readFile(filePath, 'utf8'))
+      // Legacy raw-map files are deliberately not treated as freshly fetched data.
+      if (isEntry<T>(value) && !validPayload(key, value.data)) {
+        throw new Error('Invalid filesystem cache payload.')
       }
+      if (isEntry<T>(value) && isFresh(value.timestamp, freshnessTTL)) {
+        memory.set(key, { ...value, version: 1 })
+        return structuredClone(value.data)
+      }
+    } catch (error) {
+      if (
+        !(error instanceof Error && 'code' in error && error.code === 'ENOENT')
+      ) {
+        logCacheError('filesystem read', key, error)
+      }
+    }
 
-      const data = await fs.readFile(cachePath, 'utf8')
+    if (redis && (!this.isBuildPhase || source === 'build-warmup')) {
+      try {
+        let compressed = await redis.get<string>(key)
+        if (!compressed && /^(page|nav):/.test(key)) {
+          compressed = await redis.get<string>(key.replace(/-/g, ''))
+        }
+        if (compressed) {
+          const value: unknown = JSON.parse(
+            (await gunzip(Buffer.from(compressed, 'base64'))).toString()
+          )
+          if (!isEntry<T>(value))
+            throw new Error('Invalid Redis cache envelope.')
+          if (!validPayload(key, value.data))
+            throw new Error('Invalid Redis cache payload.')
+          if (isFresh(value.timestamp, freshnessTTL)) {
+            const entry: CacheEntry<T> = { ...value, version: 1 }
+            memory.set(key, entry)
+            await this.writeFile(key, entry)
+            return structuredClone(entry.data)
+          }
+        }
+      } catch (error) {
+        logCacheError('Redis read', key, error)
+      }
+    }
+    return null
+  }
 
-      // During warmup, touch the file to update mtime so rendering workers
-      // (which use a shorter TTL) will find it fresh.
-      if (touchFile) {
-        const now = new Date()
-        await fs.utimes(cachePath, now, now).catch(() => {
-          // Ignore utimes failure
+  private async write<T>(
+    key: string,
+    data: T,
+    memory: BoundedCache<T>,
+    retentionTTL: number,
+    source?: string
+  ): Promise<void> {
+    const entry: CacheEntry<T> = {
+      version: 1,
+      data: structuredClone(data),
+      timestamp: Date.now()
+    }
+    memory.set(key, entry)
+    if (redis && (!this.isBuildPhase || source === 'build-warmup')) {
+      try {
+        const compressed = await gzip(JSON.stringify(entry))
+        await redis.set(key, compressed.toString('base64'), {
+          ex: retentionTTL
         })
+      } catch (error) {
+        logCacheError('Redis write', key, error)
       }
+    }
+    await this.writeFile(key, entry)
+  }
 
-      return JSON.parse(data)
-    } catch (err) {
-      return null
+  private async writeFile<T>(key: string, entry: CacheEntry<T>): Promise<void> {
+    const filePath = this.filePath(key)
+    const temporaryPath = `${filePath}.${randomUUID()}.tmp`
+    try {
+      await fs.mkdir(this.directory, { recursive: true })
+      await fs.writeFile(temporaryPath, JSON.stringify(entry), 'utf8')
+      await fs.rename(temporaryPath, filePath)
+    } catch (error) {
+      logCacheError('filesystem write', key, error)
+    } finally {
+      await fs.unlink(temporaryPath).catch((error: unknown) => {
+        if (
+          !(
+            error instanceof Error &&
+            'code' in error &&
+            error.code === 'ENOENT'
+          )
+        ) {
+          logCacheError('temporary file cleanup', key, error)
+        }
+      })
     }
   }
 
-  private async setFsCachedPage(
+  private filePath(key: string): string {
+    return path.join(
+      this.directory,
+      `${createHash('sha256').update(key).digest('hex')}.json`
+    )
+  }
+
+  async getPage(pageId: string, source?: string) {
+    return this.read(
+      `page:${normalizePageId(pageId)}`,
+      this.pages,
+      redisPageTTL,
+      source
+    )
+  }
+
+  async setPage(pageId: string, data: ExtendedRecordMap, source?: string) {
+    return this.write(
+      `page:${normalizePageId(pageId)}`,
+      data,
+      this.pages,
+      redisPageTTL,
+      source
+    )
+  }
+
+  async getNavLinkPage(pageId: string, source?: string) {
+    return this.read(
+      `nav:${normalizePageId(pageId)}`,
+      this.navigation,
+      redisNavTTL,
+      source
+    )
+  }
+
+  async setNavLinkPage(
     pageId: string,
     data: ExtendedRecordMap,
-    isNav = false
+    source?: string
   ) {
-    const cachePath = getPageCachePath(pageId, isNav)
-    try {
-      await fs.mkdir(FS_CACHE_DIR, { recursive: true })
-      await fs.writeFile(cachePath, JSON.stringify(data), 'utf8')
-    } catch (err) {
-      // Ignore cache write failures
-    }
+    return this.write(
+      `nav:${normalizePageId(pageId)}`,
+      data,
+      this.navigation,
+      redisNavTTL,
+      source
+    )
   }
 
-  async getSitemap(cacheKey: string, source?: string): Promise<Partial<types.SiteMap> | null> {
-    const now = Date.now()
-    const effectiveTTL = (source === 'build-warmup' || this.isBuildPhase) ? redisSitemapTTL : revalidateTTL
-
-    // 1. Memory Check
-    const cached = this.sitemapCache.get(cacheKey)
-    if (cached && now - cached.timestamp < effectiveTTL * 1000) {
-      return cached.data
-    }
-
-    // 2. Disk Check
-    try {
-      const stats = await fs.stat(SITEMAP_CACHE_FILE)
-      if (now - stats.mtimeMs < effectiveTTL * 1000) {
-        const data = await fs.readFile(SITEMAP_CACHE_FILE, 'utf8')
-        
-        // During warmup, touch the sitemap file to update mtime so rendering workers
-        // (which use a shorter TTL) will find it fresh.
-        if (source === 'build-warmup') {
-          const touchTime = new Date()
-          await fs.utimes(SITEMAP_CACHE_FILE, touchTime, touchTime).catch(() => {
-            // Ignore utimes failure
-          })
-        }
-        
-        const result = JSON.parse(data)
-        this.sitemapCache.set(cacheKey, { data: result, timestamp: stats.mtimeMs })
-        return result
-      }
-    } catch (err) {
-      // Ignore
-    }
-
-    // 3. Redis Check
-    if (redis && !this.shouldBypassRedis(source)) {
-      try {
-        const compressed = await redis.get<string>(`sitemap:${cacheKey}`)
-        if (compressed) {
-          const decompressed = await gunzip(Buffer.from(compressed, 'base64'))
-          const cachedData: CachedSitemap = JSON.parse(decompressed.toString())
-
-          if (now - cachedData.timestamp < effectiveTTL * 1000) {
-            this.sitemapCache.set(cacheKey, cachedData)
-            try {
-              await fs.mkdir(FS_CACHE_DIR, { recursive: true })
-              await fs.writeFile(SITEMAP_CACHE_FILE, JSON.stringify(cachedData.data), 'utf8')
-            } catch (err) {
-              // Ignore
-            }
-            return cachedData.data
-          }
-        }
-      } catch (err) {
-        // Ignore
-      }
-    }
-
-    return null
+  getSitemap(cacheKey: string, source?: string) {
+    const key = `sitemap:${cacheKey}`
+    return this.read(key, this.sitemaps, redisSitemapTTL, source)
   }
 
-  async setSitemap(cacheKey: string, data: Partial<types.SiteMap>, source = 'unknown') {
-    const timestamp = Date.now()
-    this.sitemapCache.set(cacheKey, { data, timestamp })
-
-    if (redis && !this.shouldBypassRedis(source)) {
-      try {
-        const cacheObj: CachedSitemap = { data, timestamp }
-        const compressed = await gzip(JSON.stringify(cacheObj))
-        await redis.set(`sitemap:${cacheKey}`, compressed.toString('base64'), {
-          ex: redisSitemapTTL
-        })
-        console.log(`[Notion Redis SET] Sitemap: ${cacheKey}`)
-      } catch (err) {
-        // Ignore
-      }
-    }
-
-    try {
-      await fs.mkdir(FS_CACHE_DIR, { recursive: true })
-      await fs.writeFile(SITEMAP_CACHE_FILE, JSON.stringify(data), 'utf8')
-    } catch (err) {
-      // Ignore
-    }
+  setSitemap(cacheKey: string, data: Partial<SiteMap>, source?: string) {
+    const key = `sitemap:${cacheKey}`
+    return this.write(key, data, this.sitemaps, redisSitemapTTL, source)
   }
 
   async clearMemory() {
-    this.memoryCache.clear()
-    this.navLinkCache.clear()
-    this.sitemapCache.clear()
-  }
-
-  async setBuildPhaseMarker() {
-    try {
-      await fs.mkdir(FS_CACHE_DIR, { recursive: true })
-      await fs.writeFile(path.join(FS_CACHE_DIR, '.build-phase'), 'true', 'utf8')
-      console.log(`[Notion Cache] Set build phase marker file.`)
-    } catch (err) {
-      // Ignore
-    }
+    this.pages.clear()
+    this.navigation.clear()
+    this.sitemaps.clear()
   }
 }
 

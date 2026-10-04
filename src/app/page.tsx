@@ -1,7 +1,8 @@
 import { PHASE_PRODUCTION_BUILD } from 'next/constants'
 import { connection } from 'next/server'
+import { unstable_rethrow } from 'next/navigation'
 
-import { NotionPage } from '@/components/NotionPage'
+import { NotionPageView } from '@/components/NotionPageView'
 import { appConfig } from '@/lib/config'
 import { buildPageMetadata } from '@/lib/metadata-builder'
 import { resolvePageModel } from '@/lib/page-model'
@@ -20,6 +21,8 @@ export async function generateMetadata() {
     const pageModel = resolvePageModel(resolvedPage)
     return buildPageMetadata(pageModel, appConfig)
   } catch (err) {
+    unstable_rethrow(err)
+    console.warn('[Metadata] Failed to resolve homepage metadata', err)
     return {}
   }
 }
@@ -32,12 +35,16 @@ export default async function Page() {
       <>
         <SpeedInsights />
         <Analytics />
-        <NotionPage {...resolvedPage} />
+        <NotionPageView {...resolvedPage} />
       </>
     )
   } catch (err) {
+    unstable_rethrow(err)
     if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
-      console.warn('[Build] Failed to resolve root Notion page. Deferring rendering to request time.', err)
+      console.warn(
+        '[Build] Failed to resolve root Notion page. Deferring rendering to request time.',
+        err
+      )
       // Avoid caching an error UI with HTTP 200 for the entire ISR interval.
       await connection()
     }
