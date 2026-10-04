@@ -46,12 +46,13 @@ async function resolveArticleAudioContext(pageId: string) {
     throw new Error('Read-aloud is only available for article pages.')
   }
 
-  const transcriptData = extractArticleTranscript(pageId, recordMap)
+  const transcriptData = extractArticleTranscript(pageUuid, recordMap)
   if (!transcriptData.transcript) {
     throw new Error('This article does not contain readable text for audio.')
   }
 
   const data = {
+    pageId: pageUuid,
     transcriptData
   }
   pageCache.set(pageUuid, { data, timestamp: now })
@@ -72,10 +73,11 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const { transcriptData } = await resolveArticleAudioContext(pageId)
+    const { pageId: canonicalPageId, transcriptData } =
+      await resolveArticleAudioContext(pageId)
     const storage = createArticleAudioStorage()
     const cached = await storage.getBundle({
-      pageId,
+      pageId: canonicalPageId,
       contentHash: transcriptData.contentHash
     })
 
@@ -94,7 +96,10 @@ export async function GET(request: NextRequest) {
           canGenerate: canGenerateArticleAudioLocally(),
           contentHash: transcriptData.contentHash,
           transcriptVersion: transcriptData.transcriptVersion,
-          ...(await resolveLocalJobStatus(pageId, transcriptData.contentHash))
+          ...(await resolveLocalJobStatus(
+            canonicalPageId,
+            transcriptData.contentHash
+          ))
         }
 
     return NextResponse.json(payload)
@@ -130,10 +135,11 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const { transcriptData } = await resolveArticleAudioContext(pageId)
+    const { pageId: canonicalPageId, transcriptData } =
+      await resolveArticleAudioContext(pageId)
     const storage = createArticleAudioStorage()
     const cached = await storage.getBundle({
-      pageId,
+      pageId: canonicalPageId,
       contentHash: transcriptData.contentHash
     })
 
@@ -147,11 +153,11 @@ export async function POST(request: NextRequest) {
         jobStatus: 'idle'
       } satisfies ArticleAudioResponse)
     }
-    const jobKey = `${pageId}:${transcriptData.contentHash}`
+    const jobKey = `${canonicalPageId}:${transcriptData.contentHash}`
 
     if (!runningJobs.has(jobKey)) {
       await writeLocalArticleAudioJobStatus({
-        pageId,
+        pageId: canonicalPageId,
         contentHash: transcriptData.contentHash,
         status: 'running'
       })
@@ -159,26 +165,26 @@ export async function POST(request: NextRequest) {
       const jobPromise = (async () => {
         try {
           const generated = await generateArticleAudioLocally({
-            pageId,
+            pageId: canonicalPageId,
             transcriptData
           })
 
           await storage.putBundle({
-            pageId,
+            pageId: canonicalPageId,
             contentHash: transcriptData.contentHash,
             audio: generated.audio,
             metadata: generated.metadata
           })
 
           await writeLocalArticleAudioJobStatus({
-            pageId,
+            pageId: canonicalPageId,
             contentHash: transcriptData.contentHash,
             status: 'idle'
           })
         } catch (jobError: any) {
           console.error('Background article audio generation failed:', jobError)
           await writeLocalArticleAudioJobStatus({
-            pageId,
+            pageId: canonicalPageId,
             contentHash: transcriptData.contentHash,
             status: 'failed',
             error:

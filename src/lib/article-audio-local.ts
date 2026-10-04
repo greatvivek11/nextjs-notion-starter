@@ -33,8 +33,18 @@ export function getKokoroWorkspaceRoot() {
   return path.join(os.homedir(), '.notion-audio-kokoro')
 }
 
+function resolveWorkspacePath(...segments: string[]) {
+  const workspaceRoot = path.resolve(getKokoroWorkspaceRoot())
+  const resolvedPath = path.resolve(workspaceRoot, ...segments)
+  if (!resolvedPath.startsWith(`${workspaceRoot}${path.sep}`)) {
+    throw new Error('Article audio job path is outside the workspace.')
+  }
+
+  return resolvedPath
+}
+
 function getLocalArticleJobDir(pageId: string, contentHash: string) {
-  return path.join(getKokoroWorkspaceRoot(), 'jobs', pageId, contentHash)
+  return resolveWorkspacePath('jobs', pageId, contentHash)
 }
 
 function getLocalArticleJobStatusPath(pageId: string, contentHash: string) {
@@ -118,13 +128,7 @@ export async function generateArticleAudioLocally({
     throw new Error('Local audio generation is only available in development.')
   }
 
-  const workspaceRoot = getKokoroWorkspaceRoot()
-  const jobsDir = path.join(
-    workspaceRoot,
-    'jobs',
-    pageId,
-    transcriptData.contentHash
-  )
+  const jobsDir = getLocalArticleJobDir(pageId, transcriptData.contentHash)
   const transcriptPath = path.join(jobsDir, 'transcript.txt')
   const audioPath = path.join(jobsDir, 'audio.wav')
   const alignmentPath = path.join(jobsDir, 'alignment.json')
