@@ -18,7 +18,7 @@ export async function resolveTagPage(tagName: string): Promise<ResolvedPage> {
     return props as ResolvedPage
   }
 
-  const recordMap = props.recordMap as ExtendedRecordMap
+  const recordMap = structuredClone(props.recordMap)
   const tagsContext = getTagsContext(recordMap)
   let propertyToFilterName: string = null
 
@@ -79,6 +79,7 @@ export async function resolveTagPage(tagName: string): Promise<ResolvedPage> {
 
   return {
     ...(props as any),
+    recordMap,
     tagsPage: true,
     propertyToFilterName
   }

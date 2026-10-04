@@ -44,8 +44,11 @@
 .index-page .notion-title {
   display: block !important;
   text-align: center !important;
-  font-weight: 800;
-  font-size: clamp(2.2rem, 6vw, 4rem);
+  font-weight: 600;
+  font-size: clamp(2.2rem, 6vw, 3.75rem);
+  letter-spacing: -0.045em;
+  line-height: 1.1;
+  text-wrap: balance;
   margin-top: 0;
   margin-bottom: 0.25rem;
 }
@@ -461,7 +464,7 @@
   }
 
   .index-page .notion-block-9a4ad916180b41f5ba93b6e82da6a546 .notion-text {
-    text-align: left;
+    text-align: left !important;
     margin: 0.25rem 0 !important;
     padding: 0.3rem 0 !important;
   }

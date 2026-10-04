@@ -1,4 +1,4 @@
-import rawSiteConfig from 'site.config'
+import rawSiteConfig from '../../site.config'
 import type { SiteConfig } from './site-config'
 
 if (!rawSiteConfig) {

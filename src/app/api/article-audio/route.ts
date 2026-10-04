@@ -22,6 +22,7 @@ const CACHE_TTL = 60 * 1000 // 60 seconds
 async function resolveArticleAudioContext(pageId: string) {
   // Normalize to UUID so both raw (no-dash) and hyphenated IDs share the same cache entry
   const pageUuid = parsePageId(pageId)
+  if (!pageUuid) throw new Error('Invalid Notion page ID.')
   const now = Date.now()
   const cached = pageCache.get(pageUuid)
   if (cached && now - cached.timestamp < CACHE_TTL) {
@@ -103,14 +104,15 @@ export async function GET(request: NextRequest) {
         }
 
     return NextResponse.json(payload)
-  } catch (error: any) {
+  } catch (error) {
+    console.error('[Audio API] Failed to check article audio', error)
     return NextResponse.json(
       {
         available: false,
         canGenerate: false,
-        error: error?.message || 'Failed to check article audio.'
+        error: 'Failed to check article audio.'
       } satisfies ArticleAudioLookupResponse,
-      { status: 200 }
+      { status: 502 }
     )
   }
 }

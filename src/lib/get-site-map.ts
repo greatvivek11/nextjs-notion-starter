@@ -6,6 +6,7 @@ import { notionCache } from './notion-cache'
 import * as types from './types'
 
 const uuid = !!appConfig.includeNotionIdInUrls
+const pendingSitemaps = new Map<string, Promise<Partial<types.SiteMap>>>()
 
 export async function getSiteMap(source?: string): Promise<types.SiteMap> {
   const partialSiteMap = await getAllPages(
@@ -26,7 +27,7 @@ const getAllPages = async (
   source?: string
 ): Promise<Partial<types.SiteMap>> => {
   const cacheKey = JSON.stringify({ rootNotionPageId, rootNotionSpaceId })
-  
+
   // 1. Check modular cache (Memory + Disk)
   const cached = await notionCache.getSitemap(cacheKey, source)
   if (cached) {
@@ -34,14 +35,26 @@ const getAllPages = async (
     return cached
   }
 
-  console.log(`[Notion Sitemap] Cache MISS. Fetching full space map from API...`)
-  const result = await getAllPagesImpl(rootNotionPageId, rootNotionSpaceId, source)
-
-  // 2. Save to modular cache
-  await notionCache.setSitemap(cacheKey, result, source)
-  console.log(`[Notion Sitemap] Successfully saved to modular cache.`)
-
-  return result
+  console.log(
+    `[Notion Sitemap] Cache MISS. Fetching full space map from API...`
+  )
+  const pending = pendingSitemaps.get(cacheKey)
+  if (pending) return structuredClone(await pending)
+  const fetchPromise = (async () => {
+    try {
+      const result = await getAllPagesImpl(
+        rootNotionPageId,
+        rootNotionSpaceId,
+        source
+      )
+      await notionCache.setSitemap(cacheKey, result, source)
+      return result
+    } finally {
+      pendingSitemaps.delete(cacheKey)
+    }
+  })()
+  pendingSitemaps.set(cacheKey, fetchPromise)
+  return structuredClone(await fetchPromise)
 }
 
 async function getAllPagesImpl(

@@ -1,3 +1,4 @@
+import { getPageBlock } from './notion-helpers'
 import type * as types from './types'
 
 export default async function pageAcl({
@@ -5,53 +6,34 @@ export default async function pageAcl({
   recordMap,
   pageId
 }: types.PageProps): Promise<types.PageProps> {
-  if (!site) {
+  if (!site || !recordMap) {
     return {
       error: {
         statusCode: 404,
-        message: 'Unable to resolve notion site'
+        message: 'Unable to resolve Notion page.'
       }
     }
   }
-
-  if (!recordMap) {
+  const block = getPageBlock(recordMap, pageId)
+  if (!block) {
     return {
       error: {
         statusCode: 404,
-        message: `Unable to resolve page for domain "${site.domain}". Notion page "${pageId}" not found.`
+        message: `Notion page "${pageId}" has no root block.`
       }
     }
   }
-
-  const keys = Object.keys(recordMap.block)
-  const rootKey = keys[0]
-
-  if (!rootKey) {
-    return {
-      error: {
-        statusCode: 404,
-        message: `Unable to resolve page for domain "${site.domain}". Notion page "${pageId}" invalid data.`
-      }
-    }
-  }
-
-  const rootEntry = recordMap.block[rootKey]
-  const rootValue =
-    (rootEntry as any)?.value?.value || (rootEntry as any)?.value || rootEntry
-  const rootSpaceId = rootValue?.space_id
-
   if (
-    rootSpaceId &&
+    block.space_id &&
     site.rootNotionSpaceId &&
-    rootSpaceId !== site.rootNotionSpaceId
+    block.space_id !== site.rootNotionSpaceId
   ) {
-    if (process.env.NODE_ENV) {
-      return {
-        error: {
-          statusCode: 404,
-          message: `Notion page "${pageId}" doesn't belong to the Notion workspace owned by "${site.domain}".`
-        }
+    return {
+      error: {
+        statusCode: 404,
+        message: `Notion page "${pageId}" does not belong to this workspace.`
       }
     }
   }
+  return {}
 }

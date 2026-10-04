@@ -1,29 +1,23 @@
 {
   "compilerOptions": {
-    "target": "es2016",
+    "target": "ES2022",
     "lib": ["dom", "dom.iterable", "esnext"],
     "noEmit": true,
     "allowJs": true,
     "skipLibCheck": true,
     "strict": false,
     "forceConsistentCasingInFileNames": true,
-    "experimentalDecorators": true,
     "esModuleInterop": true,
     "module": "esnext",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "jsx": "react-jsx",
-    "baseUrl": ".",
     "typeRoots": ["./node_modules/@types"],
     "incremental": true,
     "paths": {
-      "@/*": ["src/*"],
-      "@/components/*": ["src/components/*"],
-      "@/lib/*": ["src/lib/*"],
-      "@/styles/*": ["src/styles/*"],
-      "@/pages/*": ["src/pages/*"],
-      "@/public/*": ["public/*"]
+      "@/*": ["./src/*"],
+      "@/public/*": ["./public/*"]
     },
     "plugins": [
       {

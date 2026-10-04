@@ -184,7 +184,7 @@ export const appConfig: AppConfig = {
   showCollectionViewDropdown,
   isSearchEnabled,
   navigationStyle,
-  navigationLinks: navigationLinks as any, // Cast for now, will refine types
+  navigationLinks,
   host,
   apiHost,
   apiBaseUrl

@@ -1,107 +1,116 @@
 'use client'
 
 import { cn } from '@/lib/utils'
-import React from 'react'
+import * as React from 'react'
+import type { BundledLanguage } from 'shiki'
+import type { HighlighterCore } from 'shiki/core'
 
-// -----------------------------------------------------------------------------
-// Shiki Highlighter Singleton
-// -----------------------------------------------------------------------------
+let highlighterPromise: Promise<HighlighterCore> | undefined
 
-let highlighterPromise: Promise<any> | null = null
-
-async function getHighlighter() {
-  if (highlighterPromise) return highlighterPromise
-
-  highlighterPromise = (async () => {
-    const { createHighlighter } = await import('shiki')
-
-    return await createHighlighter({
-      themes: ['github-dark', 'github-light'],
-      langs: [
-        'javascript',
-        'typescript',
-        'bash',
-        'json',
-        'python',
-        'csharp',
-        'cpp',
-        'rust',
-        'sql',
-        'yaml',
-        'markdown',
-        'html',
-        'css',
-        'text'
-      ]
+function getHighlighter(): Promise<HighlighterCore> {
+  if (!highlighterPromise) {
+    highlighterPromise = (async () => {
+      const [
+        { createHighlighterCore },
+        { createJavaScriptRegexEngine },
+        dark,
+        light
+      ] = await Promise.all([
+        import('shiki/core'),
+        import('shiki/engine/javascript'),
+        import('shiki/themes/github-dark.mjs'),
+        import('shiki/themes/github-light.mjs')
+      ])
+      return createHighlighterCore({
+        themes: [dark.default, light.default],
+        langs: [],
+        engine: createJavaScriptRegexEngine()
+      })
+    })().catch((error: unknown) => {
+      highlighterPromise = undefined
+      throw error
     })
-  })()
-
+  }
   return highlighterPromise
 }
 
-export const ShikiCode: React.FC<{
+const aliases: Record<string, string> = {
+  'c#': 'csharp',
+  'c++': 'cpp',
+  'plain text': 'text',
+  plaintext: 'text',
+  js: 'javascript',
+  ts: 'typescript',
+  shell: 'bash'
+}
+
+export const ShikiCode = ({
+  code,
+  language = 'javascript',
+  className
+}: {
   code: string
   language?: string
   className?: string
-}> = ({ code, language = 'javascript', className }) => {
-  const [html, setHtml] = React.useState<string | null>(null)
-  const isDark =
-    typeof window !== 'undefined' &&
-    document.documentElement.classList.contains('dark-mode')
+}) => {
+  const [highlighted, setHighlighted] = React.useState<{
+    code: string
+    language: string
+    html: string
+  } | null>(null)
 
   React.useEffect(() => {
-    let isMounted = true
-
+    let cancelled = false
     async function highlight() {
       try {
         const highlighter = await getHighlighter()
-        if (!isMounted) return
-
-        const theme = isDark ? 'github-dark' : 'github-light'
-
-        // Map common Notion language names to Shiki names if needed
-        let lang = language.toLowerCase()
-        if (lang === 'c#') lang = 'csharp'
-        if (lang === 'c++') lang = 'cpp'
-        if (lang === 'plain text') lang = 'text'
-        if (lang === 'plaintext') lang = 'text'
-
-        const output = highlighter.codeToHtml(code, {
+        const { bundledLanguages } = await import('shiki/langs')
+        const normalized = language.toLowerCase()
+        const lang = aliases[normalized] || normalized
+        function isBundledLanguage(value: string): value is BundledLanguage {
+          return Object.hasOwn(bundledLanguages, value)
+        }
+        if (lang !== 'text' && !isBundledLanguage(lang)) {
+          console.warn('[Code] Unsupported highlighting language', { language })
+          return
+        }
+        if (
+          isBundledLanguage(lang) &&
+          !highlighter.getLoadedLanguages().includes(lang)
+        ) {
+          await highlighter.loadLanguage(await bundledLanguages[lang]())
+        }
+        const html = highlighter.codeToHtml(code, {
           lang,
-          theme
+          themes: { light: 'github-light', dark: 'github-dark' }
         })
-
-        if (isMounted) {
-          setHtml(output)
-        }
-      } catch (err) {
-        console.error('Shiki highlighting error:', err)
-        if (isMounted) {
-          setHtml(`<pre><code>${code}</code></pre>`)
-        }
+        if (!cancelled) setHighlighted({ code, language, html })
+      } catch (error) {
+        console.error('[Code] Syntax highlighting failed', error)
       }
     }
-
-    highlight()
-
+    void highlight()
     return () => {
-      isMounted = false
+      cancelled = true
     }
-  }, [code, language, isDark])
+  }, [code, language])
 
-  if (!html) {
+  if (
+    !highlighted ||
+    highlighted.code !== code ||
+    highlighted.language !== language
+  ) {
     return (
       <pre className={cn('shiki-loading', className)}>
         <code>{code}</code>
       </pre>
     )
   }
-
   return (
     <div
       className={cn('shiki-container', className)}
-      // biome-ignore lint/security/noDangerouslySetInnerHtml: Shiki output is trusted syntax-highlighted HTML
-      dangerouslySetInnerHTML={{ __html: html }}
+      // biome-ignore lint/security/noDangerouslySetInnerHtml: Only escaped Shiki output reaches this sink; failures render React text.
+      dangerouslySetInnerHTML={{ __html: highlighted.html }}
     />
   )
 }

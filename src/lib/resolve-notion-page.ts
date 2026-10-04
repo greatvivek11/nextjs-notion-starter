@@ -5,11 +5,12 @@ import * as acl from './acl'
 import { appConfig } from './config'
 import { getSiteMap } from './get-site-map'
 import { getPage } from './notion'
+import { cache } from 'react'
 
 /**
  * Resolves a route to a Notion page, handling overrides and canonical slugs.
  */
-export async function resolveNotionPage(
+export const resolveNotionPage = cache(async function resolveNotionPage(
   rawPageId?: string
 ): Promise<ResolvedPage> {
   const { pageUrlOverrides, pageUrlAdditions, site } = appConfig
@@ -53,5 +54,5 @@ export async function resolveNotionPage(
   }
 
   const props: ResolvedPage = { site, recordMap, pageId }
-  return { ...props, ...(await acl.default(props as any)) }
-}
+  return { ...props, ...(await acl.default(props)) }
+})

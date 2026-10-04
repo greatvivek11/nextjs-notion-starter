@@ -4,23 +4,13 @@ const withBundleAnalyzer = require('@next/bundle-analyzer')({
 })
 
 const { PHASE_PRODUCTION_BUILD } = require('next/constants')
-const fs = require('fs')
-const path = require('path')
 
 module.exports = (phase, { defaultConfig }) => {
   const isBuild = phase === PHASE_PRODUCTION_BUILD
-  const cacheDir = path.join(process.cwd(), '.notion-cache')
-  const markerPath = path.join(cacheDir, '.build-phase')
-
   if (isBuild) {
-    fs.mkdirSync(cacheDir, { recursive: true })
-    fs.writeFileSync(markerPath, 'true', 'utf8')
-    console.log('[Next.js Config] Build phase marker set synchronously.')
+    process.env.NOTION_BUILD_PHASE = 'true'
   } else {
-    // Remove marker during dev/start to prevent false positives locally
-    if (fs.existsSync(markerPath)) {
-      fs.unlinkSync(markerPath)
-    }
+    delete process.env.NOTION_BUILD_PHASE
   }
 
   const nextConfig = {
@@ -43,18 +33,14 @@ module.exports = (phase, { defaultConfig }) => {
       PAGE_URL_ADDITIONS: process.env.PAGE_URL_ADDITIONS,
       NAVIGATION_STYLE: process.env.NAVIGATION_STYLE,
       NAVIGATION_LINKS: process.env.NAVIGATION_LINKS,
-      SHOW_COLLECTION_VIEW_DROPDOWN: process.env.SHOW_COLLECTION_VIEW_DROPDOWN,
-      CRON_SECRET: process.env.CRON_SECRET
+      SHOW_COLLECTION_VIEW_DROPDOWN: process.env.SHOW_COLLECTION_VIEW_DROPDOWN
     },
     // Lower SSG concurrency to prevent Notion 429s during build
     experimental: {
       workerThreads: false,
       cpus: 2
     },
-    devIndicators: {
-      appIsrStatus: false,
-      buildActivity: false
-    },
+    devIndicators: false,
     staticPageGenerationTimeout: 300,
     images: {
       remotePatterns: [

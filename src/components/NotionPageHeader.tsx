@@ -1,27 +1,24 @@
 'use client'
 
 import * as React from 'react'
-import { Header, Search, useNotionContext } from 'react-notion-x'
+import { Header, Search } from 'react-notion-x'
 import { Block, PageBlock } from 'notion-types'
 import { appConfig } from '@/lib/config'
+import { openNotionSearch } from '@/lib/notion-search-trigger'
 
 export const NotionPageHeader: React.FC<{
   block: Block
 }> = ({ block }) => {
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  const { components, mapPageUrl } = useNotionContext()
-
   React.useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Catch Ctrl/Cmd + K
-      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
-        e.preventDefault()
-        const searchButton = document.querySelector(
-          '.notion-search-button'
-        ) as HTMLElement
-        if (searchButton) {
-          searchButton.click()
-        }
+      if (
+        appConfig.isSearchEnabled &&
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === 'k' &&
+        !e.repeat
+      ) {
+        if (openNotionSearch()) e.preventDefault()
       }
     }
 

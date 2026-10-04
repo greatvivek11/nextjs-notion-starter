@@ -1,5 +1,5 @@
 import { ExtendedRecordMap } from 'notion-types'
-import { parsePageId, uuidToId } from 'notion-utils'
+import { parsePageId } from 'notion-utils'
 
 import { includeNotionIdInUrls } from './config'
 import { getCanonicalPageId } from './get-canonical-page-id'
@@ -14,7 +14,7 @@ export const mapPageUrl =
   (pageId = '') => {
     const pageUuid = parsePageId(pageId, { uuid: true })
 
-    if (uuidToId(pageUuid) === site.rootNotionPageId) {
+    if (pageUuid === parsePageId(site.rootNotionPageId, { uuid: true })) {
       return createUrl('/', searchParams)
     } else {
       return createUrl(
@@ -29,7 +29,7 @@ export const getCanonicalPageUrl =
   (pageId = '') => {
     const pageUuid = parsePageId(pageId, { uuid: true })
 
-    if (uuidToId(pageId) === site.rootNotionPageId) {
+    if (pageUuid === parsePageId(site.rootNotionPageId, { uuid: true })) {
       return `https://${site.domain}`
     } else {
       return `https://${site.domain}/${getCanonicalPageId(pageUuid, recordMap, {

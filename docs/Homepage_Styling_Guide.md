@@ -1,205 +1,88 @@
-# Homepage Styling Guide
+# Homepage styling guide
 
-This document covers the responsive styling system for the homepage hero section, covering all three breakpoints: **Desktop**, **Tablet (iPad Mini/Air/Pro)**, and **Mobile**.
+The homepage remains Notion-rendered. Content, section order, rich-text colors,
+and configured navigation destinations are preserved.
 
-All homepage-specific styles are scoped under `.index-page` in `src/styles/notion.css` to avoid affecting blog posts or other pages.
+## Style ownership
 
-## Hero Section Structure
+| File | Responsibility |
+| --- | --- |
+| [`global.css`](../src/styles/global.css) | Design tokens, shell, navigation/footer, focus, code themes, audio, reduced motion |
+| [`notion.css`](../src/styles/notion.css) | Shared renderer cards, images, quotes, article reading width |
+| [`notion-homepage.css`](../src/styles/notion-homepage.css) | Root-only typography and content-specific responsive layouts |
+| [`notion-mobile.css`](../src/styles/notion-mobile.css) | Existing renderer mobile compatibility rules |
+| [`styles.module.css`](../src/components/styles.module.css) | Component-specific legacy styles |
 
-The homepage hero is rendered from Notion blocks with the following DOM hierarchy:
+Keep new homepage rules scoped to `.index-page`; use `.article-page` for
+editorial article refinements and `.tags-page` for tag collection adjustments.
+Do not hide every collection header to solve a tag-only issue.
 
-```
-.index-page
-└── .notion-page
-    ├── .notion-page-cover-wrapper          ← Microsoft logo cover image
-    ├── .notion-block-a869e19a...           ← Title: "Vivek Kaushik"
-    │   └── .notion-title
-    ├── .notion-row (fbd8305b...)           ← Subtitle: "Azure AI Developer at Microsoft"
-    │   └── .notion-column → .notion-h1
-    ├── .notion-row (9ef57da8...)           ← Heading: "✦ Introduction ✦"
-    │   └── .notion-column → .notion-h2
-    └── .notion-row (9a4ad916...ba93b6e...)  ← Hero Row: Profile Pic + Intro Text
-        ├── .notion-column (43.75%)          ← Profile picture column
-        │   └── figure.notion-asset-wrapper-image
-        │       └── div → img
-        ├── .notion-spacer
-        └── .notion-column (56.25%)          ← Intro text column
-            ├── .notion-text (pink bg)       ← "I'm a Fullstack + AI + Cloud..."
-            ├── .notion-text (teal bg)       ← "Currently, I'm working as..."
-            ├── .notion-text (orange bg)     ← Skills list
-            ├── .notion-text (pink bg)       ← Industries list
-            └── .notion-text (gray bg)       ← Consultancy description
-```
+## Presentation
 
-## Notion Block ID Reference
+- Local Inter regular/semibold fonts load through Next's local font loader.
+- Neutral light/dark surfaces, restrained blue accents, consistent borders,
+  spacing, radii, and short motion tokens live in the shared stylesheet.
+- Root title: `clamp(2.2rem, 6vw, 3.75rem)`, weight 600, balanced wrapping.
+- Article pages use a 780px reading width, generous line height, and left-aligned
+  titles.
+- Gallery cards use responsive minimum widths, modest title sizes, and subtle
+  hover/focus elevation instead of brightness filters.
+- Failed images retain their footprint and show a muted fallback instead of
+  collapsing a cover and shifting the page.
 
-> [!IMPORTANT]
-> These IDs are stable as long as the Notion page structure doesn't change. If blocks are deleted and recreated, the IDs will change.
+## Responsive behavior
 
-| Block | ID | Purpose |
-|---|---|---|
-| Title | `a869e19a3e74488ca16349aee7581cb2` | "Vivek Kaushik" heading |
-| Subtitle Row | `fbd8305bf95341418ff30f0f32a36622` | "Azure AI Developer at Microsoft" |
-| Intro Heading Row | `9ef57da840544a3ea5677e7636177fd1` | "✦ Introduction ✦" |
-| Hero Row | `9a4ad916180b41f5ba93b6e82da6a546` | Profile pic + intro text columns |
-| Badges Row | `a2f58273435540c7be9b38a3cca7a811` | Azure certification badges |
-| Profile Pic | `34a1309610f08080837effef3a0db200` | Image block inside hero row |
+Custom shell navigation switches to a mobile disclosure at 900px. The toggle
+is named and associated with the menu; closed links are hidden, Escape closes
+the disclosure and restores focus, and route changes close it.
+The shared theme toggle appears in the custom navbar or in the footer when
+using default Notion navigation, so both modes retain theme switching.
 
-> [!CAUTION]
-> The Hero Row ID contains `ba93b6e` (NOT `ba937b6e`). A previous typo caused all hero row CSS to silently fail. Always verify IDs against the live DOM using `curl -s http://localhost:3000 | grep -o 'notion-block-[a-f0-9]*' | sort -u`.
+The existing root-specific tablet breakpoint is 1100px. It hides the homepage
+aside, centers the content, stacks the profile/intro row, and renders
+certification badges in three columns.
 
-## Responsive Breakpoints
+At 600px the profile is more compact, the badge mosaic uses two columns, and
+skills stack into cards. Mobile introduction text is intentionally left-aligned;
+its rule overrides the preceding tablet centering rule.
 
-### Global Overrides (All Viewports)
+## Content-specific block selectors
 
-**File:** `src/styles/notion.css`, lines 15–69
+These existing exceptions remain because Notion's columns encode content-specific
+layouts. IDs remain valid only while those blocks are retained in Notion.
 
-**Strategy:** Ensure perfect centering and consistent typography hierarchy regardless of screen size.
-- **Aside (Social Icons):** Globally hidden (`display: none`) on the homepage to prevent rightward layout shifting on iPad Pro / Surface Pro devices.
-- **Centering:** When the aside is hidden, the main content `.notion-page-content-has-aside` is forced to `width: 100%` and `justify-content: center`.
-- **Typography Hierarchy:**
-  - **Title:** `font-weight: 800`, `font-size: clamp(2.2rem, 6vw, 4rem)`
-  - **Subtitle (H1):** `font-weight: 600`, `font-size: clamp(1.4rem, 4vw, 2.2rem)`
-  - **Intro Heading (H2):** `font-weight: 600`, `font-size: clamp(1.2rem, 3vw, 1.8rem)`
+| Block | ID |
+| --- | --- |
+| Title | `a869e19a3e74488ca16349aee7581cb2` |
+| Subtitle row | `fbd8305bf95341418ff30f0f32a36622` |
+| Intro heading row | `9ef57da840544a3ea5677e7636177fd1` |
+| Profile/intro row | `9a4ad916180b41f5ba93b6e82da6a546` |
+| Badges row | `a2f58273435540c7be9b38a3cca7a811` |
+| Skills row | `3d30db2722f84441a6bd7c8e06ebfeb8` |
 
-### Desktop (> 1100px)
+After changing Notion structure, inspect the rendered DOM before changing these
+selectors. Do not duplicate old exceptions in another override file or remove
+them without checking the affected layouts.
 
-No *structural* homepage-specific overrides other than the global ones above. Notion's default two-column layout is used for the hero row, with the profile pic and intro text side by side.
+## Accessibility and motion
 
-### Tablet (≤ 1100px) — `@media (max-width: 1100px)`
+The shell has a visible-on-focus skip link and consistent focus outlines.
+Social icon links are explicitly named, controls have adequate hit areas,
+and the shell does not add a second main landmark around Notion's own main.
 
-**File:** `src/styles/notion.css`, lines 15–200
+Card transforms and menu entry are brief. `prefers-reduced-motion` disables
+decorative motion and audio smooth scrolling. Content never depends on a
+scroll-reveal script to become visible.
 
-**Strategy:** All elements stack vertically with centered text. Multi-column rows collapse to single columns.
+## Validation
 
-| Element | Treatment |
-|---|---|
-| Cover image | `object-fit: contain`, full width |
-| Title | Centered, `clamp(2.4rem, 8vw, 3.8rem)`, weight 800 |
-| Subtitle row | Spacers hidden, columns collapse, height auto |
-| Intro heading row | Same as subtitle, blanks hidden |
-| Hero row | `flex-direction: column`, spacers hidden, columns 100% width |
-| Profile pic | Container: `min(75vw, 500px)`, image fills at 100%, `border-radius: 1.25rem` |
-| Intro text | Centered, `1rem` top margin for breathing room |
-| Badges | 3-column CSS grid mosaic |
-| Skills | Tabular (default Notion row behavior, scrollable) |
+The automated markup tests check menu association/closed state, social link
+names, theme controls in both navigation modes, and the Notion renderer's
+escaped readable code before highlighting. A stylesheet regression test checks
+that reduced-motion rules apply at every viewport width. These are not browser
+accessibility or layout tests.
 
-**Spacing Rules (Tablet):**
-
-```
-Cover Image
-  ↓ margin-top: 0.5rem (title block)
-Title ("Vivek Kaushik")
-  ↓ margin-bottom: 0.25rem
-Subtitle Row ("Azure AI Developer...")
-  ↓ margin-bottom: 0.75rem
-Intro Heading Row ("✦ Introduction ✦")
-  ↓ margin-bottom: 0.75rem
-Hero Row (Profile Pic)
-  ↓ margin-top: 1rem (intro text)
-Intro Text ("I'm a Fullstack...")
-```
-
-### Mobile (≤ 600px) — `@media (max-width: 600px)`
-
-**File:** `src/styles/notion.css`, lines 289+, 426+, 830+, 911+
-
-**Strategy:** Stacked layout, card-based skills, compact badge grid.
-
-| Element | Treatment |
-|---|---|
-| Cover image | `object-fit: contain`, full width |
-| Hero row | `flex-direction: column`, spacers hidden |
-| Profile pic | Scales to viewport width |
-| Badges | Mosaic pattern |
-| Skills | Card-based stacked layout (not tabular) |
-| Navigation | Avatar only (name hidden), compact links |
-
-## CSS Architecture
-
-### Selector Specificity
-
-All tablet/mobile rules use `.index-page .notion-block-{id}` with `!important` to override:
-1. Default `react-notion-x` styles
-2. Inline `style` attributes set by Notion's renderer (e.g., column widths)
-
-### Key Techniques
-
-**1. Collapsing Multi-Column Rows:**
-```css
-/* Hide spacer between columns */
-.notion-block-{row-id} .notion-spacer { display: none !important; }
-/* Force columns to stack vertically */
-.notion-block-{row-id} .notion-column {
-  width: 100% !important;     /* Override inline calc() */
-  max-width: 100% !important;
-}
-/* Set row to vertical flex */
-.notion-block-{row-id} {
-  display: flex !important;
-  flex-direction: column !important;
-  height: auto !important;    /* Kill fixed height */
-}
-```
-
-**2. Scaling Images Past Notion's Constraints:**
-```css
-/* Set desired size on the figure element */
-.notion-asset-wrapper-image {
-  width: min(75vw, 500px) !important;
-}
-/* Inner div fills the figure */
-.notion-asset-wrapper-image > div {
-  width: 100% !important;
-  height: auto !important;
-}
-/* Image fills its container */
-.notion-asset-wrapper-image img {
-  width: 100% !important;
-  height: auto !important;
-  object-fit: cover !important;
-}
-```
-
-**3. Removing Notion's Gray Background:**
-```css
-.notion-asset-wrapper-image {
-  background: transparent !important;
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-}
-```
-
-## Debugging Tips
-
-> [!TIP]
-> **Verify block IDs against live DOM:**
-> ```bash
-> curl -s http://localhost:3000 | grep -o 'notion-block-[a-f0-9]*' | sort -u | grep '9a4ad'
-> ```
-
-> [!TIP]
-> **Extract hero section HTML for inspection:**
-> ```bash
-> curl -s http://localhost:3000 | python3 -c "
-> import sys
-> html = sys.stdin.read()
-> start = html.find('notion-block-9a4ad916')
-> tag_start = html.rfind('<', 0, start)
-> print(html[tag_start:tag_start+2000])
-> "
-> ```
-
-> [!WARNING]
-> CSS `!important` **does** beat inline styles, but `width: fit-content` on a container will shrink it to the image's natural size (~225px), preventing the image from scaling up. Always use an explicit size like `min(75vw, 500px)` on the figure/wrapper.
-
-## File Reference
-
-| File | Lines | Purpose |
-|---|---|---|
-| `src/styles/notion.css` | 15–200 | Tablet (`≤ 1100px`) homepage overrides |
-| `src/styles/notion.css` | 289–322 | Mobile (`≤ 600px`) nav overrides |
-| `src/styles/notion.css` | 426+ | Mobile homepage hero overrides |
-| `src/styles/notion.css` | 830+ | Mobile badge mosaic |
-| `src/styles/notion.css` | 911+ | Mobile skills card layout |
+Before deployment, review homepage, blog listing, article, tag, and missing-page
+screens at 360, 390, 768, 1024, and 1440 CSS pixels, both themes, keyboard-only
+navigation, and reduced motion. Check image/code/PDF behavior, console errors,
+hydration, overflow, and content visibility with JavaScript disabled.

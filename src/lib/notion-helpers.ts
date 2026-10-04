@@ -3,7 +3,38 @@
  * Notion wraps many objects in double/triple value layers; these utilities normalize that.
  */
 
-import { ExtendedRecordMap } from 'notion-types'
+import type { Block, ExtendedRecordMap } from 'notion-types'
+
+function isBlock(value: unknown): value is Block {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    'id' in value &&
+    typeof value.id === 'string' &&
+    'type' in value &&
+    typeof value.type === 'string'
+  )
+}
+
+export function getPageBlock(
+  recordMap: ExtendedRecordMap,
+  pageId?: string
+): Block | undefined {
+  const id = pageId?.replace(/-/g, '').toLowerCase()
+  const key = id
+    ? Object.keys(recordMap.block).find(
+        (key) => key.replace(/-/g, '').toLowerCase() === id
+      )
+    : undefined
+  let value: unknown = recordMap.block[key ?? Object.keys(recordMap.block)[0]]
+  for (let depth = 0; depth < 3; depth++) {
+    if (isBlock(value)) return value
+    if (typeof value !== 'object' || value === null || !('value' in value))
+      return undefined
+    value = value.value
+  }
+  return isBlock(value) ? value : undefined
+}
 
 /** Unwraps Notion's nested value wrappers (value.value, value, or identity) */
 export function unwrap(entry: any): any {
@@ -14,7 +45,10 @@ export function unwrap(entry: any): any {
  * Extracts the plain-text string and date (if any) from a Notion property value array.
  * Property values are stored as rich-text segment arrays: [[text, attrs?], ...]
  */
-export function extractPropertyValue(propertyValArray: any[]): { text: string; date: Date | null } {
+export function extractPropertyValue(propertyValArray: any[]): {
+  text: string
+  date: Date | null
+} {
   let text = ''
   let date: Date | null = null
 
@@ -69,7 +103,8 @@ export function extractBlockIdsFromCollectionQuery(
   const ids: string[] = []
   for (const viewMap of Object.values(collectionQuery || {})) {
     for (const queryData of Object.values(viewMap as any)) {
-      const bIds: string[] = (queryData as any)?.collection_group_results?.blockIds || []
+      const bIds: string[] =
+        (queryData as any)?.collection_group_results?.blockIds || []
       ids.push(...bIds)
     }
   }
