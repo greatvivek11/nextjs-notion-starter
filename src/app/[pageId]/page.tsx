@@ -1,3 +1,6 @@
+import { PHASE_PRODUCTION_BUILD } from 'next/constants'
+import { connection } from 'next/server'
+
 import { NotionPage } from '@/components/NotionPage'
 import { appConfig } from '@/lib/config'
 import { getSiteMap } from '@/lib/get-site-map'
@@ -9,6 +12,9 @@ import { getNavigationLinkPages } from '@/lib/notion-navigation'
 import { notionCache } from '@/lib/notion-cache'
 
 export const revalidate = 3600
+// Give cold/uncached Notion pages enough headroom to complete their retry budget
+// (see notionMaxRetryBudget in lib/config.ts) instead of being killed mid-request.
+export const maxDuration = 45
 
 export async function generateMetadata({
   params
@@ -74,6 +80,14 @@ export default async function NotionDomainDynamicPage({
   params: Promise<{ pageId: string }>
 }) {
   const { pageId } = await params
-  const resolvedPage = await resolveNotionPage(pageId)
-  return <NotionPage {...resolvedPage} />
+  try {
+    const resolvedPage = await resolveNotionPage(pageId)
+    return <NotionPage {...resolvedPage} />
+  } catch (err) {
+    if (process.env.NEXT_PHASE === PHASE_PRODUCTION_BUILD) {
+      console.warn(`[Build] Failed to resolve Notion page "${pageId}". Deferring rendering to request time.`, err)
+      await connection()
+    }
+    throw err
+  }
 }

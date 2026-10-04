@@ -116,7 +116,11 @@ export const isSearchEnabled: boolean = getSiteConfig('isSearchEnabled', true)
 
 // --- Notion API Optimization Constants ---
 export const notionMaxConcurrency = 3
-export const notionRetryDelay = 20000 // 20s as requested by user
+export const notionRequestTimeout = 10000 // per HTTP request, including collection queries
+export const notionRetryDelay = 3000 // base delay (ms) for 429s without a Retry-After header
+export const notionMaxRetryDelay = 8000 // cap on backoff including jitter
+// Includes queueing, HTTP requests, and backoff for one retry operation.
+export const notionMaxRetryBudget = 25000
 export const notionCacheTTL = 10 * 60 * 1000 // 10 minutes (in-memory)
 export const notionCacheDir = '.notion-cache'
 export const revalidateTTL = 3600 // 1 hour (must match `revalidate` in page files; Next.js requires literals there)

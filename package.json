@@ -13,6 +13,7 @@
     "format": "biome format --write .",
     "check": "biome check --apply .",
     "test": "npm run check",
+    "test:notion": "node --test tests/notion-api.test.cjs",
     "audio:setup-kokoro": "bash ./scripts/setup-kokoro.sh",
     "audio:setup-kokoro-coreml": "LOCAL_TTS_BACKEND=kokoro-coreml bash ./scripts/setup-kokoro.sh",
     "audio:setup-mlx": "LOCAL_TTS_BACKEND=mlx-audio bash ./scripts/setup-kokoro.sh",

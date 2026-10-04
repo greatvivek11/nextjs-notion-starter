@@ -60,11 +60,21 @@ async function fetchCollectionQueryData(
   const maps = await Promise.all(
     tasksToFetch.map(async ({ cid, vid }) => {
       try {
-        const lrm = await withRetry(() => (notion as any).getCollectionData(cid, vid))
+        const lrm = await withRetry((signal) =>
+          notion.getCollectionData(cid, vid, undefined, { ofetchOptions: { signal } })
+        )
         if (lrm) {
-          const bIds = (lrm as any)?.collection_query?.[cid]?.[vid]?.collection_group_results?.blockIds
+          const query = { ...lrm.result, ...lrm.result?.reducerResults }
+          const bIds = query.collection_group_results?.blockIds
           if (bIds) bIds.forEach((id: string) => missingBlockIds.add(id))
-          return lrm as ExtendedRecordMap
+          return {
+            ...lrm.recordMap,
+            collection: lrm.recordMap.collection ?? {},
+            collection_view: lrm.recordMap.collection_view ?? {},
+            notion_user: lrm.recordMap.notion_user ?? {},
+            collection_query: { [cid]: { [vid]: query } },
+            signed_urls: {}
+          } satisfies ExtendedRecordMap
         }
       } catch (err) {
         console.error(`[Notion] Failed to fetch linked collection ${cid}:`, err)
@@ -103,12 +113,13 @@ async function fetchLinkedDatabasePages(
   const dbPageMaps = await Promise.all(
     Array.from(parentIds).map(async (pid) => {
       try {
-        return await withRetry(() =>
+        return await withRetry((signal) =>
           notion.getPage(pid, {
             signFileUrls: false,
             fetchCollections: true,
             fetchMissingBlocks: false,
-            concurrency: 1
+            concurrency: 1,
+            ofetchOptions: { signal }
           })
         )
       } catch (err) {

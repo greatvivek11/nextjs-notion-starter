@@ -20,12 +20,13 @@ export async function getNavigationLinkPages(source = 'unknown'): Promise<Extend
       const cached = await notionCache.getNavLinkPage(pageId, source)
       if (cached) return cached
 
-      const recordMap = await withRetry(() =>
+      const recordMap = await withRetry((signal) =>
         notion.getPage(pageId, {
           signFileUrls: true,
           fetchCollections: false,
           fetchMissingBlocks: false,
-          concurrency: 1
+          concurrency: 1,
+          ofetchOptions: { signal }
         })
       )
 
