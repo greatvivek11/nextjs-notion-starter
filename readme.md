@@ -121,6 +121,12 @@ strict. Expand that boundary deliberately instead of suppressing errors.
 The framework is pinned to the verified stable version, not the registry's
 potentially prerelease `latest` tag.
 
+Persistent Turbopack caching is disabled for production builds after a restored
+Vercel build cache emitted stale global CSS alongside updated navigation/footer
+markup. Development caching and the Notion/Redis/ISR caches are unchanged.
+Verify the deployed stylesheet as well as the build status when reviewing a
+Preview deployment.
+
 The HTTP transport test opens a loopback listener. Restricted sandboxes must
 permit that operation to run the complete test suite and a local browser preview.
 A diagnostic subset can run with

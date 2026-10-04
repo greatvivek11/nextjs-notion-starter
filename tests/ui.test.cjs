@@ -104,6 +104,40 @@ test('reduced-motion rules apply independently of viewport breakpoints', () => {
   assert.match(rules[0].toString(), /scroll-behavior:\s*auto\s*!important/)
 })
 
+test('processed global CSS retains shell styles, responsive navigation, and theme tokens', async () => {
+  const filename = path.resolve(__dirname, '../src/styles/global.css')
+  const result = await postcss([require('@tailwindcss/postcss')()]).process(
+    fs.readFileSync(filename, 'utf8'),
+    { from: filename }
+  )
+  const css = postcss.parse(result.css)
+  const rules = new Map()
+  css.walkRules((rule) => rules.set(rule.selector, rule))
+  for (const selector of [
+    '.site-header',
+    '.site-nav',
+    '.site-content',
+    '.site-footer',
+    '.site-footer__links',
+    '.skip-link'
+  ]) {
+    assert.ok(rules.has(selector), `Missing compiled rule: ${selector}`)
+  }
+  assert.ok(
+    rules.get('.site-header').nodes.some(
+      (node) => node.prop === 'position' && node.value === 'fixed'
+    )
+  )
+  const mobile = rules.get('.site-nav__mobile:not([hidden])')
+  assert.equal(mobile.parent.name, 'media')
+  assert.equal(mobile.parent.params, '(max-width: 900px)')
+  assert.ok(
+    rules.get(':root').nodes.some(
+      (node) => node.prop === '--header-height' && node.value === '76px'
+    )
+  )
+})
+
 test('Notion code integration server-renders escaped readable content before highlighting', () => {
   const code = '<section>Hello & goodbye</section>'
   const { ShikiCode } = loadComponent('ShikiCode', { '@/lib/utils': { cn } })

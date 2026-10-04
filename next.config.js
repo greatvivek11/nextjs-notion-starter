@@ -37,6 +37,8 @@ module.exports = (phase, { defaultConfig }) => {
     },
     // Lower SSG concurrency to prevent Notion 429s during build
     experimental: {
+      // Restored build caches served stale Tailwind CSS with updated shell markup.
+      turbopackFileSystemCacheForBuild: false,
       workerThreads: false,
       cpus: 2
     },
