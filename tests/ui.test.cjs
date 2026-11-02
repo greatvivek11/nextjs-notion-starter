@@ -176,3 +176,147 @@ test('Notion code integration server-renders escaped readable content before hig
     /<code>&lt;section&gt;Hello &amp; goodbye&lt;\/section&gt;<\/code>/
   )
 })
+
+function renderNotionImages({ previewImages = false, cover = true } = {}) {
+  const pageId = config.rootNotionPageId
+  const imageId = '22345678123412341234123456789abc'
+  const coverUrl = '/cover.png?table=block'
+  const imageUrl = '/content.png?table=block'
+  const recordMap = {
+    block: {
+      [pageId]: {
+        role: 'reader',
+        value: {
+          id: pageId,
+          type: 'page',
+          parent_table: 'space',
+          properties: { title: [['Image loading test']] },
+          format: cover ? { page_cover: coverUrl } : {},
+          content: [imageId]
+        }
+      },
+      [imageId]: {
+        role: 'reader',
+        value: {
+          id: imageId,
+          type: 'image',
+          parent_id: pageId,
+          parent_table: 'block',
+          properties: { source: [[imageUrl]] },
+          format: { block_width: 800, block_height: 600 }
+        }
+      }
+    },
+    collection: {},
+    collection_view: {},
+    collection_query: {},
+    signed_urls: {},
+    user: {}
+  }
+  if (previewImages) {
+    const preview = {
+      originalWidth: 800,
+      originalHeight: 600,
+      dataURIBase64:
+        'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7'
+    }
+    recordMap.preview_images = {
+      [coverUrl]: preview,
+      [imageUrl]: preview
+    }
+  }
+  const { NotionRenderer } = loadComponent('NotionRenderer', {
+    '@/lib/config': { appConfig: config },
+    '@/lib/map-image-url': { mapImageUrl: (url) => url },
+    '@/lib/search-notion': { searchNotion: () => undefined },
+    '@/lib/utils': { cn },
+    './styles.module.css': {},
+    './CustomLink': {},
+    './CustomPdf': {},
+    './NotionPageHeader': { NotionPageHeader: () => null },
+    './NotionProperties': {},
+    './ShikiCode': {},
+    'next/dynamic': () => () => null
+  })
+  return renderToStaticMarkup(
+    React.createElement(NotionRenderer, {
+      recordMap,
+      isDarkMode: false
+    })
+  )
+}
+
+for (const previewImages of [false, true]) {
+  test(`Notion covers load eagerly with high fetch priority (previews: ${previewImages})`, () => {
+    const html = renderNotionImages({ previewImages })
+    const cover = html.match(/<img\b[^>]*class="notion-page-cover"[^>]*>/)?.[0]
+    assert.ok(cover, 'The full Notion renderer must emit the cover image')
+    assert.match(cover, /data-notion-image-loading="true"/)
+    assert.match(cover, /fetchPriority="high"/)
+    assert.doesNotMatch(cover, /loading="lazy"/)
+    assert.match(cover, /object-position:center 50%/)
+    if (previewImages) {
+      assert.match(cover, /width="800" height="600"/)
+      assert.match(cover, /data-nimg="1"/)
+      assert.match(cover, /background-image:/)
+    } else {
+      assert.match(cover, /loading="eager"/)
+      assert.doesNotMatch(cover, /position:absolute/)
+    }
+    assert.match(html, /<link\b[^>]*rel="preload"[^>]*as="image"/)
+  })
+
+  test(`ordinary proxied content images stay lazy (previews: ${previewImages})`, () => {
+    const html = renderNotionImages({ previewImages })
+    const image = html.match(/<img\b[^>]*alt="notion image"[^>]*>/)?.[0]
+    assert.ok(image, 'The full Notion renderer must emit the content image')
+    assert.match(image, /data-notion-image-loading="true"/)
+    assert.match(image, /loading="lazy"/)
+    assert.doesNotMatch(image, /fetchPriority="high"/)
+    assert.doesNotMatch(html, /<link\b[^>]*(?:href|imageSrcSet)="[^"]*content/)
+  })
+}
+
+test('coverless Notion pages do not promote every proxied image', () => {
+  const html = renderNotionImages({ cover: false })
+  assert.doesNotMatch(html, /fetchPriority="high"/)
+  assert.match(html, /loading="lazy"/)
+})
+
+test('image shimmer only targets pending images and respects reduced motion', () => {
+  const css = postcss.parse(
+    fs.readFileSync(path.resolve(__dirname, '../src/styles/notion.css'), 'utf8')
+  )
+  const rules = []
+  css.walkRules("img[data-notion-image-loading='true']", (rule) => {
+    rules.push(rule)
+  })
+  assert.equal(rules.length, 2)
+  assert.ok(
+    rules[0].nodes.some(
+      (node) =>
+        node.prop === 'animation' &&
+        node.value === 'notion-image-shimmer 1.5s linear infinite'
+    )
+  )
+  assert.equal(rules[1].parent.params, '(prefers-reduced-motion: reduce)')
+  assert.ok(
+    rules[1].nodes.some(
+      (node) => node.prop === 'animation' && node.value === 'none'
+    )
+  )
+  let reservesSpace = false
+  css.walkRules((rule) => {
+    if (
+      rule.selector.includes(':not([width])') &&
+      rule.selector.includes(':not([height])') &&
+      rule.selector.includes("[height='100%']") &&
+      rule.nodes.some(
+        (node) => node.prop === 'min-height' && node.value === '120px'
+      )
+    ) {
+      reservesSpace = true
+    }
+  })
+  assert.ok(reservesSpace, 'Images without dimensions need a visible skeleton')
+})

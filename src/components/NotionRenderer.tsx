@@ -1,7 +1,7 @@
 'use client'
 
 import dynamic from 'next/dynamic'
-import Image from 'next/image'
+import Image, { type ImageProps } from 'next/image'
 import Link from 'next/link'
 import type { ExtendedRecordMap } from 'notion-types'
 import * as React from 'react'
@@ -97,6 +97,71 @@ export interface NotionRendererProps {
   minTableOfContentsItems?: number
 }
 
+function NotionImage({
+  priority,
+  alt,
+  onLoad,
+  onError,
+  ...props
+}: Omit<ImageProps, 'src'> & { src: string }) {
+  const [settledSrc, setSettledSrc] = React.useState<string>()
+  const imageRef = React.useCallback(
+    (image: HTMLImageElement | null) => {
+      if (image?.complete) {
+        setSettledSrc(props.src)
+        if (image.naturalWidth === 0) {
+          console.warn('[Notion Image] Failed to load image', props.src)
+        }
+      }
+    },
+    [props.src]
+  )
+  const isCover = props.className?.split(/\s+/).includes('notion-page-cover')
+  const isPriority = priority || isCover
+  const fetchPriority = isPriority ? 'high' : props.fetchPriority
+  const imageEvents = {
+    ref: imageRef,
+    'data-notion-image-loading': settledSrc !== props.src,
+    onLoad: (event: React.SyntheticEvent<HTMLImageElement>) => {
+      setSettledSrc(props.src)
+      onLoad?.(event)
+    },
+    onError: (event: React.SyntheticEvent<HTMLImageElement>) => {
+      setSettledSrc(props.src)
+      console.warn('[Notion Image] Failed to load image', props.src)
+      onError?.(event)
+    }
+  }
+
+  // Preserve native sizing when Notion has no preview dimensions.
+  if (!props.width || !props.height) {
+    return (
+      <img
+        {...imageEvents}
+        src={props.src}
+        alt={alt ?? ''}
+        className={props.className}
+        style={props.style}
+        width={props.width}
+        height={props.height}
+        loading={isPriority ? 'eager' : props.loading ?? 'lazy'}
+        fetchPriority={fetchPriority}
+        decoding='async'
+      />
+    )
+  }
+
+  return (
+    <Image
+      {...props}
+      {...imageEvents}
+      alt={alt ?? ''}
+      priority={isPriority}
+      fetchPriority={fetchPriority}
+    />
+  )
+}
+
 export const NotionRenderer: React.FC<NotionRendererProps> = ({
   recordMap,
   isDarkMode,
@@ -114,24 +179,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({
 }) => {
   const components = React.useMemo(
     () => ({
-      nextImage: ({
-        priority,
-        alt,
-        ...props
-      }: {
-        priority?: boolean
-        src: string
-        alt?: string
-        className?: string
-        [key: string]: unknown
-      }) => {
-        // Notion cover images use a specific query param or className.
-        // We ensure they get 'priority' for LCP performance.
-        const isCover = props.className?.includes('notion-page-cover')
-        return (
-          <Image {...props} alt={alt ?? ''} priority={priority || isCover} />
-        )
-      },
+      Image: NotionImage,
       nextLink: Link,
       Link: CustomLink,
       Code,
@@ -169,6 +217,7 @@ export const NotionRenderer: React.FC<NotionRendererProps> = ({
       rootDomain={rootDomain}
       fullPage={!isLiteMode}
       previewImages={!!recordMap.preview_images}
+      forceCustomImages={true}
       showCollectionViewDropdown={appConfig.showCollectionViewDropdown}
       showTableOfContents={showTableOfContents}
       minTableOfContentsItems={minTableOfContentsItems}

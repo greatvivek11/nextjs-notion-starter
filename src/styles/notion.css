@@ -49,6 +49,42 @@
   margin-bottom: 1em;
 }
 
+@keyframes notion-image-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+img[data-notion-image-loading='true'] {
+  color: transparent;
+  background-color: hsl(var(--muted) / 0.3);
+  background-image: linear-gradient(
+    90deg,
+    transparent 0%,
+    hsl(var(--foreground) / 0.1) 50%,
+    transparent 100%
+  );
+  background-size: 200% 100%;
+  animation: notion-image-shimmer 1.5s linear infinite;
+}
+
+:where(.notion-asset-wrapper-image, .notion-collection-card-cover)
+  img[data-notion-image-loading='true']:not([width]):is(
+    :not([height]),
+    [height='100%']
+  ) {
+  min-height: 120px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  img[data-notion-image-loading='true'] {
+    animation: none;
+  }
+}
+
 .notion-asset-wrapper-video > div,
 .notion-asset-wrapper-video video {
   width: 100% !important;
