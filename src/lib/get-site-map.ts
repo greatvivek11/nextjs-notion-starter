@@ -115,7 +115,7 @@ async function getAllPagesImpl(
   )
 
   return {
-    pageMap,
+    // Page bodies already live in the per-page cache; only routes belong here.
     canonicalPageMap
   }
 }

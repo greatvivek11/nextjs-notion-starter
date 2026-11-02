@@ -28,8 +28,26 @@ const redisToken =
   process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN
 const redis =
   redisUrl && redisToken
-    ? new Redis({ url: redisUrl, token: redisToken, cache: 'default' })
+    ? new Redis({
+        url: redisUrl,
+        token: redisToken,
+        cache: 'default',
+        retry: false,
+        signal: () => AbortSignal.timeout(2000)
+      })
     : null
+
+function compactSitemap<T>(key: string, entry: CacheEntry<T>): boolean {
+  if (
+    key.startsWith('sitemap:') &&
+    typeof entry.data === 'object' &&
+    entry.data !== null &&
+    'pageMap' in entry.data
+  ) {
+    return Reflect.deleteProperty(entry.data, 'pageMap')
+  }
+  return false
+}
 
 function normalizePageId(pageId: string): string {
   if (!PAGE_ID.test(pageId))
@@ -67,13 +85,20 @@ function validPayload(key: string, value: unknown): boolean {
 
 function logCacheError(operation: string, key: string, error: unknown) {
   unstable_rethrow(error)
-  console.warn(`[Notion Cache] ${operation} failed`, { key, error })
+  // Upstash errors embed the entire command, including compressed page data.
+  const message =
+    error instanceof Error ? `${error.name}: ${error.message}` : String(error)
+  console.warn(`[Notion Cache] ${operation} failed`, {
+    key,
+    error: message.slice(0, 500).split(', command was:')[0]
+  })
 }
 
 export class NotionCache {
   private pages = new BoundedCache<ExtendedRecordMap>()
   private navigation = new BoundedCache<ExtendedRecordMap>(32, 8 * 1024 * 1024)
   private sitemaps = new BoundedCache<Partial<SiteMap>>(2, 16 * 1024 * 1024)
+  private redisRetryAfter = 0
 
   get isBuildPhase(): boolean {
     return (
@@ -86,6 +111,18 @@ export class NotionCache {
     return process.env.VERCEL && !this.isBuildPhase
       ? path.join(tmpdir(), notionCacheDir)
       : path.join(process.cwd(), notionCacheDir)
+  }
+
+  private canUseRedis(source?: string): boolean {
+    return (
+      Date.now() >= this.redisRetryAfter &&
+      (!this.isBuildPhase || source === 'build-warmup')
+    )
+  }
+
+  private redisFailed(operation: string, key: string, error: unknown) {
+    logCacheError(`${operation}; bypassing Redis for 60s`, key, error)
+    this.redisRetryAfter = Date.now() + 60_000
   }
 
   private async read<T>(
@@ -106,12 +143,19 @@ export class NotionCache {
     try {
       const value: unknown = JSON.parse(await fs.readFile(filePath, 'utf8'))
       // Legacy raw-map files are deliberately not treated as freshly fetched data.
-      if (isEntry<T>(value) && !validPayload(key, value.data)) {
-        throw new Error('Invalid filesystem cache payload.')
-      }
-      if (isEntry<T>(value) && isFresh(value.timestamp, freshnessTTL)) {
-        memory.set(key, { ...value, version: 1 })
-        return structuredClone(value.data)
+      if (isEntry<T>(value)) {
+        if (!validPayload(key, value.data)) {
+          throw new Error('Invalid filesystem cache payload.')
+        }
+        const entry: CacheEntry<T> = { ...value, version: 1 }
+        if (compactSitemap(key, entry)) {
+          await this.writeFile(key, entry)
+          await this.writeRedis(key, entry, retentionTTL, source)
+        }
+        if (isFresh(entry.timestamp, freshnessTTL)) {
+          memory.set(key, entry)
+          return structuredClone(entry.data)
+        }
       }
     } catch (error) {
       if (
@@ -121,7 +165,7 @@ export class NotionCache {
       }
     }
 
-    if (redis && (!this.isBuildPhase || source === 'build-warmup')) {
+    if (redis && this.canUseRedis(source)) {
       try {
         let compressed = await redis.get<string>(key)
         if (!compressed && /^(page|nav):/.test(key)) {
@@ -135,15 +179,18 @@ export class NotionCache {
             throw new Error('Invalid Redis cache envelope.')
           if (!validPayload(key, value.data))
             throw new Error('Invalid Redis cache payload.')
-          if (isFresh(value.timestamp, freshnessTTL)) {
-            const entry: CacheEntry<T> = { ...value, version: 1 }
+          const entry: CacheEntry<T> = { ...value, version: 1 }
+          if (compactSitemap(key, entry)) {
+            await this.writeRedis(key, entry, retentionTTL, source)
+          }
+          if (isFresh(entry.timestamp, freshnessTTL)) {
             memory.set(key, entry)
             await this.writeFile(key, entry)
             return structuredClone(entry.data)
           }
         }
       } catch (error) {
-        logCacheError('Redis read', key, error)
+        this.redisFailed('Redis read', key, error)
       }
     }
     return null
@@ -161,18 +208,32 @@ export class NotionCache {
       data: structuredClone(data),
       timestamp: Date.now()
     }
+    compactSitemap(key, entry)
     memory.set(key, entry)
-    if (redis && (!this.isBuildPhase || source === 'build-warmup')) {
+    await this.writeFile(key, entry)
+    await this.writeRedis(key, entry, retentionTTL, source)
+  }
+
+  private async writeRedis<T>(
+    key: string,
+    entry: CacheEntry<T>,
+    retentionTTL: number,
+    source?: string
+  ): Promise<void> {
+    if (!isFresh(entry.timestamp, retentionTTL)) return
+    const remainingTTL =
+      retentionTTL - Math.ceil((Date.now() - entry.timestamp) / 1000)
+    if (remainingTTL <= 0) return
+    if (redis && this.canUseRedis(source)) {
       try {
         const compressed = await gzip(JSON.stringify(entry))
         await redis.set(key, compressed.toString('base64'), {
-          ex: retentionTTL
+          ex: remainingTTL
         })
       } catch (error) {
-        logCacheError('Redis write', key, error)
+        this.redisFailed('Redis write', key, error)
       }
     }
-    await this.writeFile(key, entry)
   }
 
   private async writeFile<T>(key: string, entry: CacheEntry<T>): Promise<void> {

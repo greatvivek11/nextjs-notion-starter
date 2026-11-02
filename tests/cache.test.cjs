@@ -61,7 +61,10 @@ function cacheFixture(t, { withRedis = false } = {}) {
   })
   const files = new Map()
   const redisValues = new Map()
-  const stats = { gets: 0, writes: 0 }
+  const stats = { gets: 0, sets: 0, writes: 0 }
+  const failures = { get: null, set: null }
+  const redisExpirations = new Map()
+  let redisConfig
   const missing = () =>
     Object.assign(new Error('Not found'), { code: 'ENOENT' })
   const fs = {
@@ -85,12 +88,19 @@ function cacheFixture(t, { withRedis = false } = {}) {
     }
   }
   class Redis {
+    constructor(options) {
+      redisConfig = options
+    }
     async get(key) {
       stats.gets++
+      if (failures.get) throw failures.get
       return redisValues.get(key) ?? null
     }
-    async set(key, value) {
+    async set(key, value, options) {
+      stats.sets++
+      if (failures.set) throw failures.set
       redisValues.set(key, value)
+      redisExpirations.set(key, options.ex)
     }
   }
   const controlFlow = new Error('framework control flow')
@@ -117,6 +127,9 @@ function cacheFixture(t, { withRedis = false } = {}) {
     files,
     redisValues,
     stats,
+    failures,
+    redisExpirations,
+    redisConfig,
     controlFlow,
     fs
   }
@@ -202,6 +215,178 @@ test('sitemap caching separates keys, preserves age and never shares mutable obj
   assert.equal(await cache.getSitemap('one'), null)
 })
 
+test('Redis requests preserve ISR caching, disable retries and use fresh timeout signals', (t) => {
+  const { redisConfig } = cacheFixture(t, { withRedis: true })
+  assert.equal(redisConfig.cache, 'default')
+  assert.equal(redisConfig.retry, false)
+  const deadlines = []
+  t.mock.method(AbortSignal, 'timeout', (milliseconds) => {
+    deadlines.push(milliseconds)
+    return new AbortController().signal
+  })
+  const first = redisConfig.signal()
+  const second = redisConfig.signal()
+  assert.ok(first instanceof AbortSignal)
+  assert.notEqual(first, second)
+  assert.equal(second.aborted, false)
+  assert.deepEqual(deadlines, [2000, 2000])
+})
+
+test('a Redis read outage is logged once, bypassed across keys and retried after cooldown', async (t) => {
+  const advance = clock(t)
+  const { cache, failures, stats, files } = cacheFixture(t, {
+    withRedis: true
+  })
+  const warnings = []
+  t.mock.method(console, 'warn', (...args) => warnings.push(args))
+  failures.get = new Error('Database is suspended')
+  assert.equal(await cache.getPage(id), null)
+  assert.equal(await cache.getNavLinkPage(id), null)
+  assert.equal(await cache.getSitemap('routes'), null)
+  await cache.setPage(id, map)
+  assert.equal(stats.gets, 1)
+  assert.equal(stats.sets, 0)
+  assert.equal(files.size, 1)
+  assert.ok(await cache.getPage(id))
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0][0], /bypassing Redis for 60s/)
+  advance(60)
+  failures.get = null
+  await cache.getNavLinkPage(id)
+  assert.equal(stats.gets, 3)
+})
+
+test('Redis write errors cannot dump command payloads or prevent local persistence', async (t) => {
+  clock(t)
+  const { cache, failures, files, stats } = cacheFixture(t, {
+    withRedis: true
+  })
+  const warnings = []
+  t.mock.method(console, 'warn', (...args) => warnings.push(args))
+  failures.set = new Error(
+    `ERR max request size exceeded, command was: ["set","key","${'payload'.repeat(
+      100000
+    )}"]`
+  )
+  await cache.setPage(id, map)
+  await cache.setNavLinkPage(id, map)
+  assert.equal(stats.sets, 1)
+  assert.equal(files.size, 2)
+  assert.ok(await cache.getPage(id))
+  assert.ok(await cache.getNavLinkPage(id))
+  assert.equal(warnings.length, 1)
+  assert.match(warnings[0][1].error, /max request size exceeded/)
+  assert.doesNotMatch(warnings[0][1].error, /command was|payload/)
+  assert.ok(JSON.stringify(warnings).length < 1000)
+})
+
+test('sitemaps persist only routing data without mutating caller-owned page maps', async (t) => {
+  clock(t)
+  const { cache, files, redisValues } = cacheFixture(t, { withRedis: true })
+  const legacy = {
+    canonicalPageMap: { article: id },
+    pageMap: { [id]: map }
+  }
+  await cache.setSitemap('routes', legacy)
+  const expected = { canonicalPageMap: { article: id } }
+  assert.deepEqual(await cache.getSitemap('routes'), expected)
+  assert.deepEqual(JSON.parse([...files.values()][0]).data, expected)
+  const compressed = redisValues.get('sitemap:routes')
+  assert.deepEqual(
+    JSON.parse(zlib.gunzipSync(Buffer.from(compressed, 'base64'))).data,
+    expected
+  )
+  assert.ok(Buffer.byteLength(compressed) < 1024)
+  assert.ok(legacy.pageMap[id])
+})
+
+test('legacy Redis sitemap migration compacts data without renewing its age or expiry', async (t) => {
+  const advance = clock(t)
+  const { cache, redisValues, redisExpirations, files } = cacheFixture(t, {
+    withRedis: true
+  })
+  const entry = {
+    version: 1,
+    data: { canonicalPageMap: { article: id }, pageMap: { [id]: map } },
+    timestamp: Date.now()
+  }
+  redisValues.set(
+    'sitemap:routes',
+    zlib.gzipSync(JSON.stringify(entry)).toString('base64')
+  )
+  advance(3500.25)
+  assert.deepEqual(await cache.getSitemap('routes'), {
+    canonicalPageMap: { article: id }
+  })
+  const migrated = JSON.parse(
+    zlib.gunzipSync(Buffer.from(redisValues.get('sitemap:routes'), 'base64'))
+  )
+  assert.equal(migrated.timestamp, entry.timestamp)
+  assert.equal(migrated.data.pageMap, undefined)
+  assert.equal(redisExpirations.get('sitemap:routes'), 86400 - 3501)
+  assert.equal(JSON.parse([...files.values()][0]).timestamp, entry.timestamp)
+  advance(99.75)
+  assert.equal(await cache.getSitemap('routes'), null)
+  assert.ok(await cache.getSitemap('routes', 'build-warmup'))
+})
+
+test('legacy disk sitemap migration preserves timestamps and populates a compact Redis entry', async (t) => {
+  const advance = clock(t)
+  const { cache, files, redisValues, redisExpirations } = cacheFixture(t, {
+    withRedis: true
+  })
+  await cache.setSitemap('routes', { canonicalPageMap: { article: id } })
+  const [filename, value] = [...files.entries()][0]
+  const entry = JSON.parse(value)
+  entry.data.pageMap = { [id]: map }
+  files.set(filename, JSON.stringify(entry))
+  redisValues.clear()
+  await cache.clearMemory()
+  advance(60)
+  const result = await cache.getSitemap('routes')
+  assert.equal(result.pageMap, undefined)
+  assert.equal(JSON.parse(files.get(filename)).data.pageMap, undefined)
+  assert.equal(JSON.parse(files.get(filename)).timestamp, entry.timestamp)
+  assert.equal(redisExpirations.get('sitemap:routes'), 86400 - 60)
+  assert.ok(redisValues.has('sitemap:routes'))
+})
+
+test('workspace crawling returns a compact routing index rather than duplicate record maps', async () => {
+  let stored
+  let fetched = 0
+  const site = { rootNotionPageId: id, domain: 'example.com' }
+  const { getSiteMap } = loadModule('get-site-map', {
+    './config': { appConfig: { rootNotionPageId: id, site } },
+    './types': {},
+    './get-canonical-page-id': { getCanonicalPageId: () => 'article' },
+    './notion': {
+      async getPage() {
+        fetched++
+        return structuredClone(map)
+      }
+    },
+    './notion-cache': {
+      notionCache: {
+        getSitemap: async () => stored ?? null,
+        setSitemap: async (_key, value) => {
+          stored = structuredClone(value)
+        }
+      }
+    },
+    'notion-utils': {
+      getPageProperty: () => true,
+      getAllPagesInSpace: async (_id, _space, getPage) => ({
+        [id]: await getPage(id)
+      })
+    }
+  })
+  const expected = { site, canonicalPageMap: { article: id } }
+  assert.deepEqual(await getSiteMap('build-warmup'), expected)
+  assert.deepEqual(stored, { canonicalPageMap: { article: id } })
+  assert.deepEqual(await getSiteMap(), expected)
+  assert.equal(fetched, 1)
+})
+
 test('invalid IDs are rejected before filesystem access', async (t) => {
   const { cache, stats } = cacheFixture(t)
   await assert.rejects(cache.getPage('../outside'), /Invalid Notion page ID/)
@@ -218,6 +403,17 @@ test('framework control-flow errors are rethrown rather than swallowed', async (
     throw controlFlow
   }
   await assert.rejects(cache.getPage(id), (error) => error === controlFlow)
+})
+
+test('Redis control-flow exceptions are rethrown without triggering cooldown', async (t) => {
+  const { cache, failures, controlFlow, stats } = cacheFixture(t, {
+    withRedis: true
+  })
+  failures.get = controlFlow
+  await assert.rejects(cache.getPage(id), (error) => error === controlFlow)
+  failures.get = null
+  assert.equal(await cache.getNavLinkPage(id), null)
+  assert.equal(stats.gets, 3)
 })
 
 test('page fetching deduplicates raw work but returns independent enriched results on hits and misses', async () => {
